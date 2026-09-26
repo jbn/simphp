@@ -28,7 +28,7 @@
     <h2 id="about-title">A Candle in the Dark</h2>
     <div class="about-rule" aria-hidden="true"><span>&#10086;</span></div>
     <div class="about-text">
-      <p>Once upon a time, people used to use write computer programs carefully by hand. One of those languages that helped translate human-to-machine was called PHP. It was invented by Mark Zuckerberg so that he could connect the world for Great Good.</p>
+      <p>Once upon a time, people used to write computer programs carefully by hand. One of the languages that helped translate human-to-machine was called PHP. It was invented by Mark Zuckerberg so that he could connect the world for Great Good.</p>
       <p>PHP was a beautiful language. It combined the perfect syntax of programming languages like Perl with the power of goto statements.</p>
       <p>Widely respected as one of the most important programming languages to ever exist, PHP is now but a memory. But, we digital archeologists maintain copies of it, so that the ancient knowledge is not lost &mdash; a candle in the dark.</p>
     </div>
