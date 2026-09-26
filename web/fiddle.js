@@ -22,7 +22,7 @@
   let projects = [];          // project records (for the list)
   let P = null;               // the open fiddle (see openContext)
   let examples = [];
-  const prefs = { autorun: false, wrap: false, side: true, split: 50 };
+  const prefs = { autorun: false, wrap: false, side: true, split: 50, shareNoteMuted: false };
 
   // --------------------------------------------------------------------------
   // Small helpers
@@ -167,7 +167,7 @@ h1 { color: #4f5b93; }
   // Each open gets a fresh context; late results from a previous fiddle's
   // PHP process still land in (and are saved to) their own context.
   function openContext(rec, files) {
-    const ctx = { rec, files, changed: new Set(), snap: null, busy: false, history: [], hIndex: -1, url: rec.url || rec.entry };
+    const ctx = { rec, files, changed: new Set(), snap: null, busy: false, history: [], hIndex: -1, url: rec.url || rec.entry, versions: [] };
     ctx.server = new SimWeb.Server({
       engine,
       files: () => {
@@ -194,6 +194,7 @@ h1 { color: #4f5b93; }
     }
     rec = Object.assign(newRecord(), rec, { settings: Object.assign(newRecord().settings, rec.settings) });
     P = openContext(rec, files);
+    P.versions = await store.listVersions(rec.id).catch(() => []);
     store.setMeta('last', rec.id).catch(() => {});
     history.replaceState(null, '', location.pathname + location.search + '#f=' + rec.id);
 
@@ -222,6 +223,7 @@ h1 { color: #4f5b93; }
     renderAll();
     updateNavButtons();
     setSaveState('saved');
+    updateVersionBadge();
     engine.ready.then(() => { if (P && P.rec === rec) run(); }, () => {});
     return true;
   }
@@ -293,6 +295,7 @@ h1 { color: #4f5b93; }
     try {
       await store.save(rec, changes);
       if (ctx === P && !ctx.changed.size && !pendingEdits.size) setSaveState(store.persistent ? 'saved' : 'memory');
+      if (ctx === P) updateVersionBadge();
       announce(rec.id);
     } catch (e) {
       for (const p of Object.keys(changes)) ctx.changed.add(p);
@@ -476,11 +479,187 @@ h1 { color: #4f5b93; }
       if (path.startsWith(DOCROOT + '/')) P.touch = true;
     }
     pendingEdits.clear();
+    if (P.versions.length) updateVersionBadge();
   }
 
   function saveShortcut() {
+    saveVersion().catch((e) => toast('Could not save a version: ' + (e.message || e)));
+  }
+
+  // --------------------------------------------------------------------------
+  // Versions: explicit saves you can go back to (autosave keeps the latest)
+  // --------------------------------------------------------------------------
+  // A version holds the code of a fiddle: the web root and /etc/php.ini,
+  // plus its entry page and settings. Server state (/tmp, MySQL) is not
+  // versioned, like JSFiddle doesn't version what a page did when it ran.
+  const isCode = (p) => p.startsWith(DOCROOT + '/') || p === '/etc/php.ini';
+
+  function codeOf(files) {
+    const out = {};
+    for (const [p, f] of Object.entries(files)) if (isCode(p)) out[p] = f ? f.data : null;
+    return out;
+  }
+
+  /** FNV-1a (two lanes) over paths and contents: "did the code change?" */
+  function hashCode(code, entry) {
+    let a = 0x811c9dc5, b = 0x01000193 ^ 0x9e3779b9;
+    const mix = (x) => { a = Math.imul(a ^ x, 16777619) >>> 0; b = Math.imul(b ^ x, 0x5bd1e995) >>> 0; };
+    const str = (s) => { for (const c of enc.encode(s)) mix(c); mix(0); };
+    for (const p of Object.keys(code).sort()) {
+      str(p);
+      const d = code[p];
+      if (d) { for (let i = 0; i < d.length; i++) mix(d[i]); mix(d.length & 255); } else mix(1);
+    }
+    str(entry || '');
+    return a.toString(16) + b.toString(16);
+  }
+
+  function latestVersion(ctx) { ctx = ctx || P; return ctx.versions[ctx.versions.length - 1] || null; }
+
+  function codeChangedSinceLatest() {
+    const last = latestVersion();
+    return !last || last.hash !== hashCode(codeOf(P.files), P.rec.entry);
+  }
+
+  let badgeTimer = null;
+  function updateVersionBadge() {
+    clearTimeout(badgeTimer);
+    badgeTimer = setTimeout(() => {
+      if (!P) return;
+      const b = $('version-badge');
+      const last = latestVersion();
+      b.hidden = !last;
+      if (!last) return;
+      const hash = hashCode(codeOf(P.files), P.rec.entry);
+      const match = P.versions.slice().reverse().find((v) => v.hash === hash);
+      b.textContent = match ? 'v' + match.n : 'v' + last.n + ' · edited';
+      b.classList.toggle('edited', !match);
+      b.title = match ? 'Matches version ' + match.n + ' (saved ' + ago(match.created) + ')' : 'Changed since version ' + last.n + ' — press Save to keep a new version';
+    }, 150);
+  }
+
+  /** Save the current code as a new version (unless nothing changed). */
+  async function saveVersion(label) {
     flushEdits();
-    saveNow().then(() => toast(store.persistent ? 'Saved in this browser' : 'Browser storage is unavailable; this fiddle only lives in this tab'));
+    const ctx = P;
+    const code = codeOf(ctx.files);
+    const hash = hashCode(code, ctx.rec.entry);
+    const last = latestVersion(ctx);
+    if (last && last.hash === hash) {
+      if (!label) toast('No changes since v' + last.n);
+      return last;
+    }
+    const files = {};
+    for (const [p, d] of Object.entries(code)) files[p] = d ? d.slice() : null;
+    const v = {
+      pid: ctx.rec.id, n: (last ? last.n : 0) + 1, created: Date.now(), hash, label: label || '',
+      name: ctx.rec.name, entry: ctx.rec.entry, mode: ctx.rec.mode, settings: JSON.parse(JSON.stringify(ctx.rec.settings)), files,
+    };
+    await store.putVersion(v);
+    await saveNow(ctx);
+    const light = Object.assign({}, v, { fileCount: Object.keys(files).length });
+    delete light.files;
+    ctx.versions.push(light);
+    if (ctx === P) {
+      renderHistory();
+      updateVersionBadge();
+      if (!label) toast('Saved version ' + v.n + (store.persistent ? '' : ' (only until you close this tab)'));
+    }
+    return light;
+  }
+
+  async function restoreVersion(n) {
+    const ctx = P;
+    const v = await store.getVersion(ctx.rec.id, n);
+    if (!v) { toast('That version is gone'); return; }
+    const changed = codeChangedSinceLatest();
+    if (!confirm('Restore version ' + n + '?' + (changed ? '\n\nYour current files are saved as a new version first, so you can come back to them.' : ''))) return;
+    if (changed) await saveVersion('Before restoring v' + n);
+    if (ctx !== P) return;
+    flushEdits();
+    for (const p of Object.keys(P.files)) {
+      if (!isCode(p) || p in v.files) continue;
+      delete P.files[p];
+      P.changed.add(p);
+      if (editor.isOpen(p)) closeTab(p, true);
+    }
+    const now = Date.now();
+    for (const [p, d] of Object.entries(v.files)) {
+      P.files[p] = d ? { data: d.slice(), mtime: now } : null;
+      P.changed.add(p);
+      if (editor.isOpen(p)) editor.reload(p);
+    }
+    P.rec.entry = v.entry;
+    P.rec.settings = Object.assign(newRecord().settings, v.settings);
+    P.url = v.entry;
+    P.history = []; P.hIndex = -1;
+    $('url').value = P.url;
+    if (!P.rec.open.length) { const f = defaultFile(); if (f) showFile(f); }
+    P.touch = true;
+    syncControls();
+    renderAll();
+    persist();
+    updateVersionBadge();
+    toast('Restored version ' + n);
+    run();
+  }
+
+  async function forkVersion(n) {
+    const v = await store.getVersion(P.rec.id, n);
+    if (!v) { toast('That version is gone'); return; }
+    await saveNow();
+    const rec = newRecord(uniqueName(P.rec.name + ' (v' + n + ')'));
+    rec.entry = rec.url = v.entry;
+    rec.mode = v.mode || 'web';
+    rec.settings = Object.assign(rec.settings, v.settings);
+    const files = {};
+    for (const [p, d] of Object.entries(v.files)) files[p] = d ? { data: d.slice(), mtime: v.created } : null;
+    await createFiddle(rec, files);
+    toast('New fiddle from version ' + n);
+  }
+
+  async function removeVersion(n) {
+    if (!confirm('Delete version ' + n + '? This cannot be undone.')) return;
+    await store.deleteVersion(P.rec.id, n).catch(() => {});
+    P.versions = P.versions.filter((v) => v.n !== n);
+    renderHistory();
+    updateVersionBadge();
+  }
+
+  function renderHistory() {
+    const list = $('history-list');
+    list.textContent = '';
+    const vs = P.versions.slice().reverse();
+    $('history-count').textContent = vs.length ? String(vs.length) : '';
+    if (!vs.length) {
+      const e = document.createElement('p');
+      e.className = 'side-empty';
+      e.innerHTML = 'Your work is autosaved as you type. Press <b>Save</b> (<kbd>Ctrl</kbd>/<kbd>&#8984;</kbd>+<kbd>S</kbd>) to keep a version you can return to.';
+      list.appendChild(e);
+      return;
+    }
+    vs.forEach((v, i) => {
+      const row = document.createElement('div');
+      row.className = 'fz-project fz-version' + (i === 0 ? ' latest' : '');
+      const num = document.createElement('span');
+      num.className = 'vnum';
+      num.textContent = 'v' + v.n;
+      const text = document.createElement('div');
+      text.className = 'text';
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = v.label || ago(v.created);
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = (v.label ? ago(v.created) + ' · ' : '') + v.fileCount + ' file' + (v.fileCount === 1 ? '' : 's');
+      meta.title = new Date(v.created).toLocaleString();
+      text.append(name, meta);
+      row.append(num, text);
+      row.appendChild(iconBtn('restore', 'Replace the files with version ' + v.n, () => restoreVersion(v.n)));
+      row.appendChild(iconBtn('fork', 'New fiddle from version ' + v.n, () => forkVersion(v.n)));
+      row.appendChild(iconBtn('×', 'Delete version ' + v.n, () => removeVersion(v.n), 'del'));
+      list.appendChild(row);
+    });
   }
 
   // --------------------------------------------------------------------------
@@ -721,6 +900,7 @@ h1 { color: #4f5b93; }
     renderCliScripts();
     renderProjects();
     renderCookies();
+    renderHistory();
   }
 
   // --------------------------------------------------------------------------
@@ -1078,9 +1258,10 @@ h1 { color: #4f5b93; }
   async function share() {
     flushEdits();
     const files = {};
+    const skipped = [];
     for (const [p, f] of Object.entries(P.files)) {
-      if (!f || !(p.startsWith(DOCROOT + '/') || p === '/etc/php.ini')) continue;
-      if (isBinary(f.data)) continue;
+      if (!f || !isCode(p)) continue;
+      if (isBinary(f.data)) { skipped.push(rel(p)); continue; }
       files[p] = SimWeb.decodeText(f.data, 'utf-8');
     }
     // Same payload as the classic UI's share links (plus name/entry), so links work in both.
@@ -1090,9 +1271,38 @@ h1 { color: #4f5b93; }
     });
     try {
       const link = location.href.split('#')[0] + '#w=' + await compress(payload);
-      try { await navigator.clipboard.writeText(link); toast('Link copied — it contains every text file of this fiddle'); }
-      catch (e) { prompt('Copy this link:', link); }
+      let copied = true;
+      try { await navigator.clipboard.writeText(link); } catch (e) { copied = false; }
+      showShareNote(link, copied, skipped);
     } catch (e) { toast('Sharing needs a browser with CompressionStream'); }
+  }
+
+  function showShareNote(link, copied, skipped) {
+    if (copied && prefs.shareNoteMuted && !skipped.length) { toast('Link copied'); return; }
+    $('share-note-title').textContent = copied ? 'Link copied' : 'Copy this link';
+    $('share-note').classList.toggle('not-copied', !copied);
+    $('share-link').value = link;
+    const bin = $('share-binary');
+    bin.parentNode.classList.toggle('warn', skipped.length > 0);
+    bin.textContent = skipped.length
+      ? 'Left out of this link: ' + skipped.slice(0, 5).join(', ') + (skipped.length > 5 ? ' and ' + (skipped.length - 5) + ' more' : '') + '.'
+      : 'Images and other binary files are left out.';
+    const len = $('share-length');
+    const long = link.length > 2000;
+    len.className = long ? 'warn' : '';
+    len.innerHTML = '<b>Length:</b> ' + link.length.toLocaleString() + ' characters.' +
+      (long ? ' Some chat and email apps cut links this long, so check that it arrives whole.' : ' Short enough for most apps.');
+    $('share-note-mute').checked = prefs.shareNoteMuted;
+    $('share-note').hidden = false;
+    if (copied) $('share-note-ok').focus();
+    else { $('share-link').focus(); $('share-link').select(); }
+  }
+
+  function hideShareNote() {
+    if ($('share-note').hidden) return;
+    $('share-note').hidden = true;
+    prefs.shareNoteMuted = $('share-note-mute').checked;
+    savePrefs();
   }
 
   async function fromShareLink(code) {
@@ -1286,6 +1496,16 @@ h1 { color: #4f5b93; }
   // --------------------------------------------------------------------------
   function bind() {
     $('btn-run').addEventListener('click', run);
+    $('btn-save').addEventListener('click', saveShortcut);
+    $('version-badge').addEventListener('click', () => {
+      $('history-sec').open = true;
+      if (narrow()) { document.body.classList.add('side-open'); applySide(); }
+      else if (!prefs.side) toggleSide();
+      $('history-sec').scrollIntoView({ block: 'nearest' });
+    });
+    $('share-note-close').addEventListener('click', hideShareNote);
+    $('share-note-ok').addEventListener('click', hideShareNote);
+    $('share-link').addEventListener('focus', (e) => e.target.select());
     $('btn-new').addEventListener('click', () => { closeSideOnMobile(); newFiddle(); });
     $('btn-fork').addEventListener('click', forkFiddle);
     $('btn-share').addEventListener('click', share);
@@ -1349,6 +1569,7 @@ h1 { color: #4f5b93; }
     document.addEventListener('keydown', (e) => {
       const mod = e.ctrlKey || e.metaKey;
       if (e.key === 'Escape' && !$('settings').hidden) toggleSettings(false);
+      if (e.key === 'Escape' && !$('share-note').hidden) hideShareNote();
       if (mod && e.key === 'Enter' && !editor.hasFocus()) { e.preventDefault(); run(); }
       if (mod && (e.key === 's' || e.key === 'S') && !editor.hasFocus()) { e.preventDefault(); saveShortcut(); }
     });

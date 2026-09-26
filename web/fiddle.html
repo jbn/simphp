@@ -19,13 +19,15 @@
   </a>
   <div class="fz-actions">
     <button id="btn-run" class="btn primary" title="Run (Ctrl/&#8984; + Enter)">&#9654; Run</button>
+    <button id="btn-save" class="btn" title="Save a version you can go back to (Ctrl/&#8984; + S). Your work is also autosaved as you type.">Save</button>
     <button id="btn-new" class="btn" title="Start a new fiddle">New</button>
     <button id="btn-fork" class="btn" title="Save a copy of this fiddle and switch to it">Fork</button>
     <button id="btn-share" class="btn" title="Copy a link containing all the files of this fiddle">Share</button>
   </div>
   <div class="fz-title">
     <input id="project-name" type="text" spellcheck="false" aria-label="Fiddle name" maxlength="80">
-    <span id="save-state" class="save-state" title="Saved in this browser (IndexedDB)">saved</span>
+    <span id="save-state" class="save-state" title="Autosaved in this browser (IndexedDB)">saved</span>
+    <button id="version-badge" class="version-badge" type="button" title="Saved versions of this fiddle" hidden></button>
   </div>
   <div class="fz-right">
     <div class="seg" role="radiogroup" aria-label="Run mode">
@@ -34,7 +36,8 @@
     </div>
     <label class="fz-check" title="Run again shortly after you stop typing"><input id="set-autorun" type="checkbox"> Auto-run</label>
     <button id="btn-settings" class="btn ghost" title="Server settings for this fiddle" aria-expanded="false">Settings</button>
-    <a class="btn ghost" href="index.html" title="The single-workspace simulator">Classic</a>
+    <button id="btn-about" class="btn ghost" type="button" title="About this simulator">About</button>
+    <a class="btn ghost fz-classic" href="index.html" title="The single-workspace simulator">Classic</a>
     <span id="engine-status" class="engine-status loading" title="Engine status">loading&hellip;</span>
   </div>
 </header>
@@ -53,6 +56,11 @@
       <div id="file-list" class="fz-files" role="tree" aria-label="Files in /var/www"></div>
       <p class="side-note">Web root: <code>/var/www</code>. <span class="entry-star">&#9733;</span> marks the entry page.</p>
     </section>
+
+    <details id="history-sec" class="side-sec">
+      <summary class="side-head"><span class="pane-title">History</span><span id="history-count" class="count"></span></summary>
+      <div id="history-list" class="fz-projects"></div>
+    </details>
 
     <details id="server-sec" class="side-sec">
       <summary class="side-head"><span class="pane-title">Server state</span><span id="server-count" class="count"></span></summary>
@@ -203,6 +211,27 @@
   </div>
 </div>
 
+<!-- Shown after Share copies a link -->
+<div id="share-note" class="share-note" role="dialog" aria-labelledby="share-note-title" hidden>
+  <div class="row-between">
+    <h2 id="share-note-title">Link copied</h2>
+    <button id="share-note-close" class="icon-btn" title="Dismiss">&times;</button>
+  </div>
+  <input id="share-link" type="text" readonly aria-label="Share link" spellcheck="false">
+  <p>The link <em>is</em> the fiddle: it carries a compressed copy of your files, and nothing is uploaded anywhere. Keep in mind:</p>
+  <ul>
+    <li><b>It's a snapshot.</b> Edits you make later don't reach it. Share again to send them.</li>
+    <li><b>Only text files travel.</b> <span id="share-binary">Images and other binary files are left out.</span></li>
+    <li><b>Server state stays here.</b> MySQL databases, sessions, <code>/tmp</code> and cookies start fresh for whoever opens the link.</li>
+    <li><b>It opens as a new fiddle</b> in their browser. Nothing syncs back to you.</li>
+    <li id="share-length"></li>
+  </ul>
+  <div class="row-between share-note-foot">
+    <label class="fz-check"><input id="share-note-mute" type="checkbox"> Don't show this again</label>
+    <button id="share-note-ok" class="btn primary">Got it</button>
+  </div>
+</div>
+
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
@@ -216,6 +245,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/properties/properties.min.js"></script>
 <script src="simphp-core.js"></script>
 <script src="simweb.js"></script>
+<script src="about.js"></script>
 <script src="fiddle-store.js"></script>
 <script src="fiddle.js"></script>
 </body>

@@ -21,8 +21,10 @@ npm start            # http://localhost:8411/
 * **Fiddle** (`/fiddle.html`): a jsfiddle-style editor for many projects. Each
   fiddle has its own files and folders (tabs, rename, upload, an entry page),
   server state (`/tmp`, MySQL databases, cookies) and settings. Fiddles are
-  saved to IndexedDB as you type, so a reload picks up where you left off, and
-  **New**, **Fork**, **Share** and **Examples** each create a new fiddle.
+  saved to IndexedDB as you type, so a reload picks up where you left off.
+  **Save** (Ctrl/⌘+S) keeps a numbered version you can restore or fork from
+  the History list. **New**, **Fork**, **Share** and **Examples** each create
+  a new fiddle.
 * **Editor + a virtual server disk**: files under `/var/www`, plus `/etc/php.ini`,
   `/tmp` (sessions, uploads, logs), `/var/mail` and `/var/lib/mysql`. Everything
   persists in your browser.

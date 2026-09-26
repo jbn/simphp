@@ -8,6 +8,7 @@
  *
  *   projects  { id, name, created, updated, ...ui state }       key: id
  *   files     { pid, path, data: Uint8Array|null, mtime }       key: [pid, path]
+ *   versions  { pid, n, created, hash, files: {path: bytes}, ... } key: [pid, n]
  *   meta      { key, value }                                    key: key
  *
  * If IndexedDB is unavailable (blocked storage, some private windows) the
@@ -24,19 +25,24 @@
     constructor() {
       this.db = null;
       this.persistent = false;
-      this.mem = { projects: new Map(), files: new Map(), meta: new Map() };
+      this.mem = { projects: new Map(), files: new Map(), meta: new Map(), versions: new Map() };
     }
 
     async open() {
       try {
-        const r = indexedDB.open(DB_NAME, 1);
-        r.onupgradeneeded = () => {
+        const r = indexedDB.open(DB_NAME, 2);
+        r.onupgradeneeded = (ev) => {
           const db = r.result;
-          db.createObjectStore('projects', { keyPath: 'id' });
-          db.createObjectStore('files', { keyPath: ['pid', 'path'] }).createIndex('pid', 'pid');
-          db.createObjectStore('meta', { keyPath: 'key' });
+          if (ev.oldVersion < 1) {
+            db.createObjectStore('projects', { keyPath: 'id' });
+            db.createObjectStore('files', { keyPath: ['pid', 'path'] }).createIndex('pid', 'pid');
+            db.createObjectStore('meta', { keyPath: 'key' });
+          }
+          if (ev.oldVersion < 2) db.createObjectStore('versions', { keyPath: ['pid', 'n'] }).createIndex('pid', 'pid');
         };
         this.db = await req2p(r);
+        // let a newer version of this page (in another tab) upgrade the database
+        this.db.onversionchange = () => this.db.close();
         this.persistent = true;
         // Ask the browser not to evict fiddles under storage pressure.
         if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
@@ -98,16 +104,46 @@
       if (!this.db) {
         this.mem.projects.delete(pid);
         for (const k of [...this.mem.files.keys()]) if (k.startsWith(pid + '\0')) this.mem.files.delete(k);
+        for (const k of [...this.mem.versions.keys()]) if (k.startsWith(pid + '\0')) this.mem.versions.delete(k);
         return;
       }
-      const t = this.db.transaction(['projects', 'files'], 'readwrite');
+      const t = this.db.transaction(['projects', 'files', 'versions'], 'readwrite');
       t.objectStore('projects').delete(pid);
-      const files = t.objectStore('files');
-      const cur = files.index('pid').openKeyCursor(IDBKeyRange.only(pid));
-      cur.onsuccess = () => {
-        const c = cur.result;
-        if (c) { files.delete(c.primaryKey); c.continue(); }
-      };
+      for (const name of ['files', 'versions']) {
+        const os = t.objectStore(name);
+        const cur = os.index('pid').openKeyCursor(IDBKeyRange.only(pid));
+        cur.onsuccess = () => {
+          const c = cur.result;
+          if (c) { os.delete(c.primaryKey); c.continue(); }
+        };
+      }
+      return tx2p(t);
+    }
+
+    /** Saved versions of a fiddle, oldest first, without their files. */
+    async listVersions(pid) {
+      let recs;
+      if (!this.db) recs = [...this.mem.versions.values()].filter((v) => v.pid === pid);
+      else recs = await req2p(this.db.transaction('versions').objectStore('versions').index('pid').getAll(pid));
+      return recs.map(({ files, ...v }) => Object.assign(v, { fileCount: Object.keys(files).length })).sort((a, b) => a.n - b.n);
+    }
+
+    async getVersion(pid, n) {
+      if (!this.db) return this.mem.versions.get(pid + '\0' + n) || null;
+      return (await req2p(this.db.transaction('versions').objectStore('versions').get([pid, n]))) || null;
+    }
+
+    async putVersion(v) {
+      if (!this.db) { this.mem.versions.set(v.pid + '\0' + v.n, v); return; }
+      const t = this.db.transaction('versions', 'readwrite');
+      t.objectStore('versions').put(v);
+      return tx2p(t);
+    }
+
+    async deleteVersion(pid, n) {
+      if (!this.db) { this.mem.versions.delete(pid + '\0' + n); return; }
+      const t = this.db.transaction('versions', 'readwrite');
+      t.objectStore('versions').delete([pid, n]);
       return tx2p(t);
     }
 
