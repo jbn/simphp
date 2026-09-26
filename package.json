@@ -7,6 +7,7 @@
     "build": "./build.sh",
     "link": "./build.sh link",
     "start": "node bin/serve.js",
+    "deploy": "wrangler pages deploy web --project-name simphp-infinitefun-com --branch main",
     "test": "node tests/run-phpt.js && node tests/mysql-test.js && node tests/difftest.js",
     "test:phpt": "node tests/run-phpt.js",
     "test:diff": "node tests/difftest.js",

@@ -389,6 +389,8 @@ textarea { font-family: var(--mono); font-size: 12.5px; resize: vertical; }
   float: left; font-size: 3.3em; line-height: .82; padding: .06em .08em 0 0; color: var(--about-accent);
 }
 .about-provenance { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--about-edge); font-size: 13px; font-style: italic; color: var(--about-muted); line-height: 1.5; }
+.about-source { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
+.about-source:hover { color: var(--about-accent); }
 .about-actions { margin-top: 18px; }
 .about-enter {
   font: inherit; font-size: 16px; letter-spacing: .02em; cursor: pointer;

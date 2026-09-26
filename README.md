@@ -16,6 +16,8 @@ native PHP 4.1.1 built for i386 Linux.
 npm start            # http://localhost:8411/
 ```
 
+Live at https://simphp.infinitefun.com.
+
 ## What you get
 
 * **Fiddle** (`/fiddle.html`): a jsfiddle-style editor for many projects. Each
@@ -168,6 +170,20 @@ reference/Dockerfile   native PHP 4.1.1 for i386 Linux, the ground truth
 ./build.sh link     # relink only
 npm test            # phpt + MySQL + differential tests (the last needs Docker)
 ```
+
+## Deploying
+
+`web/` is the whole site, and any static host can serve it. The live site is the
+Cloudflare Pages project `simphp-infinitefun-com`:
+
+```sh
+npm run deploy      # wrangler pages deploy web --project-name simphp-infinitefun-com --branch main
+```
+
+Pushes to `main` that touch `web/` deploy automatically
+(`.github/workflows/deploy.yml`). The workflow needs the repository secret
+`CLOUDFLARE_API_TOKEN` (a token with *Cloudflare Pages: Edit*) and the variable
+`CLOUDFLARE_ACCOUNT_ID`.
 
 PHP 4.1.1 is released under the PHP License 2.02 (`build/php-4.1.1/LICENSE`).
 sql.js is MIT-licensed (`web/vendor/sqljs/LICENSE`).
