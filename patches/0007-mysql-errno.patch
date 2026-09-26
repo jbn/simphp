@@ -1,0 +1,11 @@
+--- a/ext/mysql/libmysql/my_sys.h	2001-06-01 13:07:26
++++ b/ext/mysql/libmysql/my_sys.h	2026-09-25 21:54:59
+@@ -145,7 +145,7 @@
+ #endif
+ #endif /* MSDOS */
+ 
+-#ifdef HAVE_ERRNO_AS_DEFINE
++#if defined(HAVE_ERRNO_AS_DEFINE) || defined(__EMSCRIPTEN__)
+ #include <errno.h>			/* errno is a define */
+ #else
+ extern int errno;			/* declare errno */

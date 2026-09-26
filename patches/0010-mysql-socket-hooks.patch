@@ -1,0 +1,50 @@
+--- a/ext/mysql/libmysql/violite.c	2001-01-23 08:48:50
++++ b/ext/mysql/libmysql/violite.c	2026-09-25 22:35:02
+@@ -138,6 +138,20 @@
+   return errno;			/* On Win32 this mapped to WSAGetLastError() */
+ }
+ 
++
++#ifdef __EMSCRIPTEN__
++/* phpsim: connections to the simulated mysqld are served in-process */
++extern int phpsim_sock_read(int fd, void *buf, int size);
++extern int phpsim_sock_write(int fd, const void *buf, int size);
++extern int phpsim_sock_close(int fd);
++#define VIO_READ(fd, buf, size) phpsim_sock_read((fd), (buf), (size))
++#define VIO_WRITE(fd, buf, size) phpsim_sock_write((fd), (buf), (size))
++#define VIO_CLOSE(fd) phpsim_sock_close(fd)
++#else
++#define VIO_READ(fd, buf, size) read((fd), (buf), (size))
++#define VIO_WRITE(fd, buf, size) write((fd), (buf), (size))
++#define VIO_CLOSE(fd) closesocket(fd)
++#endif
+ 
+ int vio_read(Vio * vio, gptr buf, int size)
+ {
+@@ -155,7 +169,7 @@
+   r = recv(vio->sd, buf, size,0);
+ #else
+   errno=0;					/* For linux */
+-  r = read(vio->sd, buf, size);
++  r = VIO_READ(vio->sd, buf, size);
+ #endif /* __WIN__ */
+ #ifndef DBUG_OFF
+   if (r < 0)
+@@ -183,7 +197,7 @@
+   }
+   r = send(vio->sd, buf, size,0);
+ #else
+-  r = write(vio->sd, buf, size);
++  r = VIO_WRITE(vio->sd, buf, size);
+ #endif /* __WIN__ */
+ #ifndef DBUG_OFF
+   if (r < 0)
+@@ -322,7 +336,7 @@
+     r=0;
+     if (shutdown(vio->sd,2))
+       r= -1;
+-    if (closesocket(vio->sd))
++    if (VIO_CLOSE(vio->sd))
+       r= -1;
+   }
+   if (r)

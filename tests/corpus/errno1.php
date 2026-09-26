@@ -1,0 +1,22 @@
+<?php
+error_reporting(E_ALL);
+$s = stat("/nonexistent/file");
+$f = fopen("/nonexistent/file", "r");
+$f = fopen("/tmp/phpsim", "w");
+$d = opendir("/nonexistent");
+mkdir("/nonexistent/a/b", 0755);
+mkdir("/tmp/phpsim", 0755);
+rmdir("/nonexistent");
+unlink("/nonexistent");
+unlink("/tmp/phpsim");
+copy("/nonexistent", "/tmp/x");
+chmod("/nonexistent", 0644);
+touch("/nonexistent/x");
+filesize("/nonexistent");
+filemtime("/nonexistent");
+is_writable("/nonexistent");
+file("/nonexistent");
+readfile("/nonexistent");
+chdir("/nonexistent");
+include("/nonexistent.inc");
+echo "done\n";

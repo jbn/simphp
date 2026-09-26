@@ -1,0 +1,17 @@
+{
+  "name": "phpsim",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The original PHP 4.1.1 engine compiled to WebAssembly, with a simulated Apache/CGI server and browser",
+  "scripts": {
+    "build": "./build.sh",
+    "link": "./build.sh link",
+    "start": "node bin/serve.js",
+    "test": "node tests/run-phpt.js && node tests/mysql-test.js && node tests/difftest.js",
+    "test:phpt": "node tests/run-phpt.js",
+    "test:diff": "node tests/difftest.js",
+    "php": "node bin/php411.js",
+    "test:mysql": "node tests/mysql-test.js"
+  },
+  "license": "SEE LICENSE IN README.md"
+}

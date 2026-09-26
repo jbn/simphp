@@ -1,0 +1,150 @@
+[
+  {
+    "id": "welcome",
+    "title": "Welcome — it works!",
+    "files": [
+      "index.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "forms",
+    "title": "Forms, GET/POST & magic quotes",
+    "files": [
+      "index.php",
+      "upload.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "sessions",
+    "title": "Sessions (with a cookie jar)",
+    "files": [
+      "index.php",
+      "dump.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "redirect",
+    "title": "Cookies, headers & redirects",
+    "files": [
+      "index.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "mysql",
+    "title": "MySQL guestbook (LAMP)",
+    "files": [
+      "index.php",
+      "admin.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "objects",
+    "title": "PHP 4 objects & references",
+    "files": [
+      "index.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "strings",
+    "title": "Strings, PCRE & ereg",
+    "files": [
+      "index.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "arrays",
+    "title": "Arrays & callbacks",
+    "files": [
+      "index.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "includes",
+    "title": "Multi-file site with includes",
+    "files": [
+      "index.php",
+      "config.php",
+      "lib/functions.inc.php",
+      "lib/header.inc.php",
+      "lib/footer.inc.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "files",
+    "title": "File I/O on the server disk",
+    "files": [
+      "index.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "shell",
+    "title": "exec(), system() & mail()",
+    "files": [
+      "index.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "errors",
+    "title": "Errors, notices & handlers",
+    "files": [
+      "index.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "buffering",
+    "title": "Output buffering & highlighting",
+    "files": [
+      "index.php",
+      "highlight.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "math",
+    "title": "32-bit ints, floats, bcmath, calendar",
+    "files": [
+      "index.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "xml",
+    "title": "XML parser, WDDX & serialize",
+    "files": [
+      "index.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "phpinfo",
+    "title": "phpinfo()",
+    "files": [
+      "index.php"
+    ],
+    "entry": "index.php"
+  },
+  {
+    "id": "cli",
+    "title": "Command-line script (php -q)",
+    "files": [
+      "script.php"
+    ],
+    "entry": "script.php",
+    "mode": "cli",
+    "args": "-q",
+    "extra": "foo bar",
+    "stdin": "hello\nworld\n"
+  }
+]

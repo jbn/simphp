@@ -1,0 +1,33 @@
+<?php
+mysql_connect("localhost", "u", "p") or die(mysql_error());
+mysql_query("CREATE DATABASE shop") or print(mysql_error() . "\n");
+mysql_query("CREATE DATABASE shop") or print(mysql_errno() . ": " . mysql_error() . "\n");
+mysql_select_db("shop");
+mysql_query("CREATE TABLE cat (id tinyint unsigned NOT NULL auto_increment PRIMARY KEY, name varchar(20) NOT NULL, UNIQUE KEY name (name))") or die(mysql_error());
+mysql_query("CREATE TABLE item (id int NOT NULL auto_increment, cat_id tinyint NOT NULL, title varchar(10), status enum('new','used','broken') NOT NULL, flags set('a','b','c'), price float(7,2), qty smallint, changed timestamp, PRIMARY KEY (id), KEY cat_id (cat_id))") or die(mysql_error());
+mysql_query("INSERT INTO cat (name) VALUES ('Books'), ('Music'), ('Toys')"); echo "multi insert id ", mysql_insert_id(), " rows ", mysql_affected_rows(), "\n";
+mysql_query("INSERT INTO cat SET name='Games'"); echo "insert set id ", mysql_insert_id(), "\n";
+mysql_query("INSERT INTO cat (id, name) VALUES (0, 'Zero')"); echo "id for 0: ", mysql_insert_id(), "\n";
+mysql_query("INSERT INTO cat (name) VALUES ('books')"); echo mysql_errno(), " ", mysql_error(), "\n";
+mysql_query("INSERT INTO item (cat_id, title, status, flags, price, qty) VALUES (1, 'A very long title', 'used', 'c,a', 9.999, 70000), (2, 'Tab\\there', 'weird', 'x', 1.5, -5), (1, 'O\\'Brien', 'NEW', NULL, NULL, 3)") or die(mysql_error());
+$r = mysql_query("SELECT i.id, c.name, i.title, i.status, i.flags, i.price, i.qty, LENGTH(i.changed) AS tslen FROM item i LEFT JOIN cat c ON c.id = i.cat_id ORDER BY i.id");
+while ($o = mysql_fetch_object($r)) { echo "$o->id|$o->name|$o->title|$o->status|$o->flags|$o->price|$o->qty|$o->tslen\n"; }
+mysql_data_seek($r, 1); $row = mysql_fetch_row($r); echo "seek: ", $row[2], " table=", mysql_field_table($r, 1), "\n";
+$r = mysql_query("SELECT c.name, COUNT(*) AS n, SUM(i.qty) FROM cat c, item i WHERE i.cat_id = c.id GROUP BY c.name ORDER BY n DESC"); while ($row = mysql_fetch_row($r)) echo implode(",", $row), "\n";
+$r = mysql_query("SELECT name FROM cat WHERE name LIKE 'b%' OR name LIKE '%\\_%'"); echo mysql_num_rows($r), " like rows\n";
+mysql_query("REPLACE INTO cat (id, name) VALUES (1, 'Novels')"); echo "replace affected ", mysql_affected_rows(), "\n";
+mysql_query("UPDATE item SET qty = qty + 1 ORDER BY id DESC LIMIT 1"); echo "update limit ", mysql_affected_rows(), "\n";
+mysql_query("DELETE FROM item WHERE qty > 0 LIMIT 1"); echo "delete limit ", mysql_affected_rows(), "\n";
+mysql_query("ALTER TABLE item ADD note text, DROP COLUMN flags, CHANGE qty quantity int(11) NOT NULL") or print(mysql_error() . "\n");
+$r = mysql_query("SHOW CREATE TABLE item"); $row = mysql_fetch_row($r); echo $row[1], "\n";
+$r = mysql_query("SHOW COLUMNS FROM item LIKE 'q%'"); while ($row = mysql_fetch_assoc($r)) echo implode("|", $row), "\n";
+mysql_query("INSERT INTO item (cat_id, title, note) VALUES (3, 'bin', '" . mysql_escape_string("a\0b\\c'\"") . "')");
+$r = mysql_query("SELECT note, LENGTH(note), HEX(note) FROM item WHERE title = 'BIN'"); $row = mysql_fetch_row($r); echo bin2hex($row[0]), " ", $row[1], " ", $row[2], "\n";
+$r = mysql_query("SELECT DATE_ADD('2001-12-31', INTERVAL 1 DAY), '2001-12-26' + INTERVAL 1 MONTH, TO_DAYS('2001-12-26'), CONCAT('x', NULL), IFNULL(NULL, 'def'), 5 % 3, 10 DIV 3, 'abc' = 'ABC', 'a' || 0, 1 && 0, STRCMP('a','b'), LOCATE('b','abc'), SUBSTRING_INDEX('a.b.c','.',2), FIND_IN_SET('b','a,b,c'), ROUND(2.567, 1), FLOOR(-1.5), MOD(7,3)");
+print_r(mysql_fetch_row($r));
+echo mysql_num_rows(mysql_query("SHOW TABLES")), " tables; ", mysql_num_rows(mysql_query("SHOW TABLE STATUS")), " status rows\n";
+mysql_query("DROP TABLE nope"); echo mysql_errno(), ": ", mysql_error(), "\n";
+mysql_query("SELECT * FROM item; DROP TABLE item"); echo mysql_errno(), ": ", mysql_error(), "\n";
+mysql_query(""); echo mysql_errno(), ": ", mysql_error(), "\n";
+mysql_query("DROP DATABASE shop"); echo "dropped: ", mysql_errno(), "\n";
+mysql_select_db("shop"); echo mysql_errno(), ": ", mysql_error(), "\n";

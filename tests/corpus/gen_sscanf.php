@@ -1,0 +1,55 @@
+<?php
+error_reporting(E_ALL);
+function dump($x) { ob_start(); var_dump($x); $s = ob_get_contents(); ob_end_clean(); echo str_replace("\n", " ", $s), "\n"; }
+dump(sscanf("12 apples", "%d %s"));
+dump(sscanf("age: 25 name: Bob", "age: %d name: %s"));
+dump(sscanf("0x1F", "%x"));
+dump(sscanf("1F", "%x"));
+dump(sscanf("777", "%o"));
+dump(sscanf("3.14 2.5e3", "%f %e"));
+dump(sscanf("-42", "%d"));
+dump(sscanf("+42", "%d"));
+dump(sscanf("abc", "%d"));
+dump(sscanf("", "%d"));
+dump(sscanf("12345", "%2d%3d"));
+dump(sscanf("hello world", "%5c"));
+dump(sscanf("hello world", "%s%s"));
+dump(sscanf("a:b:c", "%[^:]:%[^:]:%s"));
+dump(sscanf("abc123", "%[a-z]%d"));
+dump(sscanf("2002-01-15", "%4d-%2d-%2d"));
+dump(sscanf("x=5", "x=%d y=%d"));
+dump(sscanf("  7", "%d"));
+dump(sscanf("12 34", "%*d %d"));
+dump(sscanf("id: 007", "id: %s"));
+dump(sscanf("99%", "%d%%"));
+dump(sscanf("4294967295", "%u"));
+dump(sscanf("-1", "%u"));
+dump(sscanf("A", "%c"));
+dump(sscanf("12abc", "%i"));
+dump(sscanf("0x10", "%i"));
+dump(sscanf("010", "%i"));
+$n = sscanf("Jan 5 2002", "%s %d %d", $mon, $day, $year);
+echo "$n: $mon $day $year\n";
+$n = sscanf("only", "%s %s", $a, $b);
+echo "$n: $a\n";
+dump(sscanf("1 2 3", "%d %d"));
+dump(sscanf("1,2,3", "%d,%d,%d,%d"));
+dump(sscanf("abc", ""));
+dump(sscanf("ab cd", "%s %n"));
+// implode/explode
+dump(explode(",", "a,b,c"));
+dump(explode(",", ""));
+dump(explode(",", ","));
+dump(explode(",", "a,b,c", 2));
+dump(explode(",", "a,b,c", 1));
+dump(explode(",", "a,b,c", 0));
+dump(explode(",", "a,b,c", -1));
+dump(explode("ab", "xabyabz"));
+dump(explode("long delimiter", "short"));
+dump(@explode("", "abc"));
+dump(explode(" ", "  a  b "));
+dump(explode(1, "01210"));
+echo implode(",", array(1, 2, 3)), "|", implode(array("a", "b")), "|", implode(", ", array()), "|", implode("-", array(true, false, null, 1.5, "x")), "\n";
+echo implode(array(1, 2), ","), "|", join("+", array("k" => "v", "k2" => "v2")), "\n";
+echo implode(",", array(array(1), 2)), "\n";
+?>

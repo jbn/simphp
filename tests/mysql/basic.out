@@ -1,0 +1,47 @@
+Connected: 3.23.49-log / Localhost via UNIX socket / proto 10
+insert id 1 affected 1
+insert id 2 affected 1
+insert id 3 affected 1
+3 rows, 8 fields
+id:int:11:not_null primary_key auto_increment
+name:string:50:not_null multiple_key
+email:string:100:
+message:blob:65535:not_null blob
+rating:int:3:unsigned
+price:real:10:not_null
+len:int:21:not_null
+UPPER(name):string:6:
+1 Rasmus <rasmus@php.net> Hello from 1995 r=5 p=9.50 len=15 RASMUS
+2 Zeev <> It's "great" r=255 p=0.00 len=12 ZEEV
+3 Andi <andi@zend.com> Zend Engine r=0 p=1234.57 len=11 ANDI
+1 (case-insensitive match)
+noop update affected: 0
+update affected: 3
+1062: Duplicate entry '1' for key 1
+1146: Table 'test.nosuchtable' doesn't exist
+1054: Unknown column 'nosuchcol' in 'field list'
+1064: You have an error in your SQL syntax near 'SELEC * FROM guestbook' at line 1
+table: guestbook
+id|int(11)||PRI||auto_increment
+name|varchar(50)||MUL||
+email|varchar(100)|YES|||
+message|text||||
+rating|tinyint(3) unsigned|YES||0|
+price|decimal(8,2)|||0.00|
+created|datetime|||0000-00-00 00:00:00|
+ts|timestamp(14)|YES|||
+Array
+(
+    [0] => Wednesday December 26th 2001 02:30 PM
+    [1] => ab1
+    [2] => n
+    [3] => abc
+    [4] => 3
+    [5] => 428567f408994404
+    [6] => e1bfd762321e409cee4ac0b6e841963c
+    [7] => 1
+)
+db: mysql
+db: test
+8 fields via list_fields; not_null primary_key auto_increment
+delete all affected: 0

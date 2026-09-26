@@ -1,0 +1,30 @@
+<?php
+$vals = array(0.1, 0.5, 1.5, 2.5, -2.5, 1/3, 2/3, 1e15, 1e16, 1.5e-7, 123456789.12345678, -0.0, 1e100, 3.0, 0.1 + 0.2, 1e14 + 0.5, 99999999999999.9);
+foreach ($vals as $v) { echo $v, " | "; var_dump($v); }
+foreach (array(0.5, 1.5, 2.5, -0.5, -1.5, 1.955, 5.045, 5.055, 1.45, 2.675) as $v) echo round($v), "/", round($v, 1), "/", round($v, 2), " ";
+echo "\n";
+echo floor(-1.5), ceil(-1.5), floor(1.5), ceil(1.5), abs(-5), abs(-5.5), abs("-3"), "\n";
+var_dump(floor(5), ceil("4.1"), round("3.7"), abs(-2147483647 - 1));
+echo sqrt(16), sqrt(2), pow(2, 10), pow(2, 0.5), pow(-8, 1/3), pow(2, -1), pow("3", "2"), pow(2, 31), pow(2, 32), pow(-2, 31), "\n";
+echo exp(1), " ", log(M_E), " ", log10(1000), " ", log(0), " ", sqrt(-1), " ", acos(2), "\n";
+echo sin(M_PI), " ", cos(M_PI), " ", tan(M_PI_4), " ", atan2(1, 1), " ", asin(1), " ", deg2rad(180), " ", rad2deg(M_PI), " ", pi(), "\n";
+echo M_PI, " ", M_E, " ", M_SQRT2, " ", M_LN2, "\n";
+echo 10 / 3, " ", 10 / 5, " ", -7 / 2, " ", 2147483647 + 1, " ", -2147483648 - 1, " ", 2147483647 * 2, " ", 65536 * 65536, " ", 46341 * 46341, "\n";
+var_dump(2147483647 + 1, 0x7fffffff, 0xffffffff, 4294967296, -2147483648, 017777777777, 2147483648 - 1);
+var_dump(is_int(2147483648), (int) 2147483648, (int) 4294967295.0, (int) -2147483649, (int) 1e19, (int) "9999999999", intval(" 0012"));
+echo 5 % 3, " ", -5 % 3, " ", 5.7 % 3, " ", "7" % "4", " ", 2147483647 % 2, "\n";
+echo 1 << 31, " ", 1 << 32, " ", -1 >> 1, " ", 5 & 3, " ", 5 | 3, " ", 5 ^ 3, " ", ~5, " ", "12" ^ "3", " ", "a" | "b", " ", ~"ab" == chr(158) . chr(157) ? 'y' : 'n', "\n";
+echo decbin(10), " ", bindec("1111"), " ", dechex(-1), " ", hexdec("ff"), " ", hexdec("fffffffff"), " ", octdec("777"), " ", decoct(-1), " ", base_convert("ff", 16, 2), " ", base_convert("-10", 10, 16), " ", bindec("11111111111111111111111111111111"), "\n";
+echo number_format(2147483648), " ", max(1, 2.0), " ", min(-0.0, 0), "\n";
+mt_srand(5); echo mt_rand(), " ", mt_rand(), " ", mt_rand(1, 100), " ", mt_rand(1, 100), "\n";
+srand(5); echo rand(), " ", rand(), " ", rand(1, 100), " ", rand(1, 100), "\n";
+mt_srand(0); echo mt_rand(), "\n"; srand(0); echo rand(), "\n";
+srand(12345); $arr = range(1, 10); shuffle($arr); echo implode(",", $arr), "\n";
+srand(1); echo implode(",", (array) array_rand(array('a' => 1, 'b' => 2, 'c' => 3, 'd' => 4), 2)), "\n";
+echo getrandmax(), " ", mt_getrandmax(), "\n";
+bcscale(5);
+echo bcadd("1234567890123456789", "987654321987654321"), " ", bcsub("1", "2"), " ", bcmul("123456789", "987654321"), " ", bcdiv("22", "7"), " ", bcmod("100", "7"), " ", bcpow("2", "64"), " ", bcsqrt("2", 20), " ", bccomp("1.00001", "1", 3), " ", bcadd("0.1", "0.2", 1), "\n";
+echo 1e3, " ", 1E-3, " ", .5, " ", 1., " ", 0.00001, " ", 0.0001, " ", 123456789012345678, " ", 1.0E+25, " ", -1.5e-10, " ", 7.0/2, "\n";
+ini_set('precision', 17); echo 0.1, " ", 1/3, "\n"; ini_set('precision', 5); echo M_PI, " ", 123456.789, "\n"; ini_set('precision', 14);
+var_dump(is_nan(sqrt(-1)), is_infinite(log(0)), is_finite(1e308 * 10));
+var_dump("1e1000" + 0, -"1e1000", (int) "1e1000", 1e308 * 10 / 1e308);

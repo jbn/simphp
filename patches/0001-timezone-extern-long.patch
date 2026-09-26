@@ -1,0 +1,11 @@
+--- a/ext/standard/datetime.c	2001-12-14 02:08:43
++++ b/ext/standard/datetime.c	2026-09-25 20:35:29
+@@ -55,7 +55,7 @@
+ };
+ 
+ #if !defined(HAVE_TM_ZONE) && !defined(_TIMEZONE) && !defined(HAVE_DECLARED_TIMEZONE)
+-extern time_t timezone;
++extern long timezone; /* phpsim: glibc declares long; time_t is 64-bit on wasm32 */
+ extern int daylight;
+ #endif
+ 

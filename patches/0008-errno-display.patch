@@ -1,0 +1,207 @@
+--- a/ext/standard/filestat.c	2001-12-13 05:51:42
++++ b/ext/standard/filestat.c	2026-09-25 22:03:19
+@@ -19,6 +19,10 @@
+ /* $Id: filestat.c,v 1.78.2.2 2001/12/13 13:51:42 sterling Exp $ */
+ 
+ #include "php.h"
++
++#ifndef PHPSIM_ERRNO
++#define PHPSIM_ERRNO(e) (e)
++#endif
+ #include "safe_mode.h"
+ #include "fopen_wrappers.h"
+ #include "php_globals.h"
+@@ -580,7 +584,7 @@
+ #endif
+ 		if (VCWD_STAT(BG(CurrentStatFile), &BG(sb)) == -1) {
+ 			if (!IS_LINK_OPERATION() && (!IS_EXISTS_CHECK(type) || errno != ENOENT)) { /* fileexists() test must print no error */
+-				php_error(E_WARNING, "stat failed for %s (errno=%d - %s)", BG(CurrentStatFile), errno, strerror(errno));
++				php_error(E_WARNING, "stat failed for %s (errno=%d - %s)", BG(CurrentStatFile), PHPSIM_ERRNO(errno), strerror(errno));
+ 			}
+ 			efree(BG(CurrentStatFile));
+ 			BG(CurrentStatFile) = NULL;
+@@ -594,7 +598,7 @@
+ 	if (IS_LINK_OPERATION() && !BG(lsb).st_mode) {
+ 		/* do lstat if the buffer is empty */
+ 		if (VCWD_LSTAT(filename, &BG(lsb)) == -1) {
+-			php_error(E_WARNING, "lstat failed for %s (errno=%d - %s)", filename, errno, strerror(errno));
++			php_error(E_WARNING, "lstat failed for %s (errno=%d - %s)", filename, PHPSIM_ERRNO(errno), strerror(errno));
+ 			RETURN_FALSE;
+ 		}
+ 	}
+--- a/ext/standard/fsock.c	2001-08-11 10:03:37
++++ b/ext/standard/fsock.c	2026-09-25 22:03:19
+@@ -24,6 +24,10 @@
+ /* Synced with php 3.0 revision 1.133 1999-07-21 [sas] */
+ 
+ #include "php.h"
++
++#ifndef PHPSIM_ERRNO
++#define PHPSIM_ERRNO(e) (e)
++#endif
+ #include "php_globals.h"
+ #include <stdlib.h>
+ #include <stddef.h>
+@@ -225,7 +229,7 @@
+ 
+ 			if (arg_count>2) {
+ 				zval_dtor(*args[2]);
+-				ZVAL_LONG(*args[2], errno);
++				ZVAL_LONG(*args[2], PHPSIM_ERRNO(errno));
+ 			}
+ 			if (arg_count>3) {
+ 				zval_dtor(*args[3]);
+@@ -251,7 +255,7 @@
+ 			CLOSE_SOCK(1);
+ 			if (arg_count>2) {
+ 				zval_dtor(*args[2]);
+-				ZVAL_LONG(*args[2], errno);
++				ZVAL_LONG(*args[2], PHPSIM_ERRNO(errno));
+ 			}
+ 			if (arg_count>3) {
+ 				zval_dtor(*args[3]);
+--- a/ext/standard/dir.c	2001-08-11 10:03:36
++++ b/ext/standard/dir.c	2026-09-25 22:03:19
+@@ -22,6 +22,10 @@
+ /* {{{ includes/startup/misc */
+ 
+ #include "php.h"
++
++#ifndef PHPSIM_ERRNO
++#define PHPSIM_ERRNO(e) (e)
++#endif
+ #include "fopen_wrappers.h"
+ 
+ #include "php_dir.h"
+@@ -165,7 +169,7 @@
+ 	if (!dirp->dir) {
+ #endif
+ 		efree(dirp);
+-		php_error(E_WARNING, "OpenDir: %s (errno %d)", strerror(errno), errno);
++		php_error(E_WARNING, "OpenDir: %s (errno %d)", strerror(errno), PHPSIM_ERRNO(errno));
+ 		RETURN_FALSE;
+ 	}
+ 
+@@ -238,14 +242,14 @@
+ 	ret = chroot((*arg)->value.str.val);
+ 	
+ 	if (ret != 0) {
+-		php_error(E_WARNING, "chroot: %s (errno %d)", strerror(errno), errno);
++		php_error(E_WARNING, "chroot: %s (errno %d)", strerror(errno), PHPSIM_ERRNO(errno));
+ 		RETURN_FALSE;
+ 	}
+ 
+ 	ret = chdir("/");
+ 	
+ 	if (ret != 0) {
+-		php_error(E_WARNING, "chdir: %s (errno %d)", strerror(errno), errno);
++		php_error(E_WARNING, "chdir: %s (errno %d)", strerror(errno), PHPSIM_ERRNO(errno));
+ 		RETURN_FALSE;
+ 	}
+ 
+@@ -274,7 +278,7 @@
+ 	ret = VCWD_CHDIR((*arg)->value.str.val);
+ 	
+ 	if (ret != 0) {
+-		php_error(E_WARNING, "ChDir: %s (errno %d)", strerror(errno), errno);
++		php_error(E_WARNING, "ChDir: %s (errno %d)", strerror(errno), PHPSIM_ERRNO(errno));
+ 		RETURN_FALSE;
+ 	}
+ 
+--- a/ext/session/mod_files.c	2001-08-04 18:42:40
++++ b/ext/session/mod_files.c	2026-09-25 22:03:19
+@@ -20,6 +20,10 @@
+ 
+ #include "php.h"
+ 
++#ifndef PHPSIM_ERRNO
++#define PHPSIM_ERRNO(e) (e)
++#endif
++
+ #include <sys/stat.h>
+ #include <sys/types.h>
+ 
+@@ -155,7 +159,7 @@
+ 
+ 		if (data->fd == -1)
+ 			php_error(E_WARNING, "open(%s, O_RDWR) failed: %s (%d)", buf, 
+-					strerror(errno), errno);
++					strerror(errno), PHPSIM_ERRNO(errno));
+ 	}
+ }
+ 
+@@ -173,7 +177,7 @@
+ 
+ 	dir = opendir(dirname);
+ 	if (!dir) {
+-		php_error(E_NOTICE, "ps_files_cleanup_dir: opendir(%s) failed: %s (%d)\n", dirname, strerror(errno), errno);
++		php_error(E_NOTICE, "ps_files_cleanup_dir: opendir(%s) failed: %s (%d)\n", dirname, strerror(errno), PHPSIM_ERRNO(errno));
+ 		return (0);
+ 	}
+ 
+@@ -303,7 +307,7 @@
+ #endif
+ 
+ 	if (n != vallen) {
+-		php_error(E_WARNING, "write failed: %s (%d)", strerror(errno), errno);
++		php_error(E_WARNING, "write failed: %s (%d)", strerror(errno), PHPSIM_ERRNO(errno));
+ 		return FAILURE;
+ 	}
+ 
+--- a/ext/mysql/libmysql/libmysql.c	2001-06-01 13:07:26
++++ b/ext/mysql/libmysql/libmysql.c	2026-09-25 22:03:19
+@@ -3,6 +3,10 @@
+ 
+ #define DONT_USE_RAID
+ #include <global.h>
++
++#ifndef PHPSIM_ERRNO
++#define PHPSIM_ERRNO(e) (e)
++#endif
+ #if defined(__WIN__) || defined(_WIN32) || defined(_WIN64)
+ #include <winsock.h>
+ #include <odbcinst.h>
+@@ -63,7 +67,7 @@
+ #define perror(A)
+ #else
+ #include <errno.h>
+-#define ERRNO errno
++#define ERRNO PHPSIM_ERRNO(errno)
+ #define SOCKET_ERROR -1
+ #define closesocket(A) close(A)
+ #endif
+@@ -1303,7 +1307,7 @@
+       if (!(hp=gethostbyname(host)))
+       {
+ 	net->last_errno=CR_UNKNOWN_HOST;
+-	sprintf(net->last_error, ER(CR_UNKNOWN_HOST), host, errno);
++	sprintf(net->last_error, ER(CR_UNKNOWN_HOST), host, PHPSIM_ERRNO(errno));
+ 	goto error;
+       }
+       memcpy(&sock_addr.sin_addr,hp->h_addr, (size_t) hp->h_length);
+@@ -1776,7 +1780,7 @@
+   if ((fd = my_open(tmp_name,O_RDONLY, MYF(0))) < 0)
+   {
+     mysql->net.last_errno=EE_FILENOTFOUND;
+-    sprintf(buf,EE(mysql->net.last_errno),tmp_name,errno);
++    sprintf(buf,EE(mysql->net.last_errno),tmp_name,PHPSIM_ERRNO(errno));
+     strmake(mysql->net.last_error,buf,sizeof(mysql->net.last_error)-1);
+     my_net_write(&mysql->net,"",0); net_flush(&mysql->net);
+     my_free(tmp_name,MYF(0));
+@@ -1800,14 +1804,14 @@
+   if (my_net_write(&mysql->net,"",0) || net_flush(&mysql->net))
+   {
+     mysql->net.last_errno=CR_SERVER_LOST;
+-    sprintf(mysql->net.last_error,ER(mysql->net.last_errno),errno);
++    sprintf(mysql->net.last_error,ER(mysql->net.last_errno),PHPSIM_ERRNO(errno));
+     my_free(tmp_name,MYF(0));
+     DBUG_RETURN(-1);
+   }
+   if (readcount < 0)
+   {
+     mysql->net.last_errno=EE_READ; /* the errmsg for not entire file read */
+-    sprintf(buf,EE(mysql->net.last_errno),tmp_name,errno);
++    sprintf(buf,EE(mysql->net.last_errno),tmp_name,PHPSIM_ERRNO(errno));
+     strmake(mysql->net.last_error,buf,sizeof(mysql->net.last_error)-1);
+     my_free(tmp_name,MYF(0));
+     DBUG_RETURN(-1);

@@ -1,0 +1,57 @@
+<?php
+$a = array(5 => 'a', 'b', 'x' => 'c', 'd', '10' => 'e', 'f', '07' => 'g', 1.7 => 'h', true => 'i', null => 'j');
+var_dump($a);
+$b = array(3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5);
+sort($b); echo implode(",", $b), "\n";
+rsort($b); echo implode(",", $b), "\n";
+$c = array("10", 9, "9a", 1.5, "abc", "ABC", true, null, "1e1", "010");
+sort($c); var_dump($c);
+$c2 = $c; sort($c2, SORT_STRING); var_dump($c2);
+$c3 = array("10", 9, "1e1", 10.0, "010", "9"); sort($c3, SORT_NUMERIC); var_dump($c3);
+$d = array("b" => 2, "a" => 2, "c" => 1, "d" => 2, "e" => 1);
+asort($d); print_r($d); arsort($d); print_r($d);
+$e = array("x10" => 1, "x9" => 2, "X1" => 3, "10" => 4, "9" => 5);
+ksort($e); print_r($e); krsort($e); print_r($e);
+$n = array("img12.png", "img10.png", "IMG2.png", "img1.png");
+natsort($n); print_r($n); natcasesort($n); print_r($n);
+function cmp($x, $y) { echo "cmp($x,$y) "; return $x == $y ? 0 : ($x < $y ? -1 : 1); }
+$u = array(3, 1, 2, 3, 1); usort($u, 'cmp'); echo "\n"; print_r($u);
+$stable = array(array('k' => 1, 'v' => 'a'), array('k' => 0, 'v' => 'b'), array('k' => 1, 'v' => 'c'), array('k' => 0, 'v' => 'd'), array('k' => 1, 'v' => 'e'));
+function bykey($x, $y) { return $x['k'] - $y['k']; }
+usort($stable, 'bykey'); foreach ($stable as $s) echo $s['v']; echo "\n";
+$eq = array('b' => 1, 'a' => 1, 'c' => 1, 'z' => 0, 'y' => 1); asort($eq); echo implode(",", array_keys($eq)), "\n";
+function kcmp($a, $b) { return strcmp($a, $b); } $uk = array('b' => 1, 'a' => 2, 'c' => 3); uksort($uk, 'kcmp'); print_r($uk);
+function vcmp($a, $b) { return $a - $b; } $ua = array('x' => 3, 'y' => 1, 'z' => 2); uasort($ua, 'vcmp'); print_r($ua);
+print_r(array_merge(array('a' => 1, 5 => 2), array('a' => 3, 5 => 4, 6)));
+print_r(array_merge_recursive(array('a' => array(1), 'b' => 2), array('a' => array(3), 'b' => 4)));
+print_r(array_slice(array('a' => 1, 5 => 2, 3, 4), 1, 2));
+$sp = array(1, 2, 3, 4, 5); $removed = array_splice($sp, 1, 2, array('x', 'y', 'z')); print_r($sp); print_r($removed);
+print_r(array_keys(array('a' => 1, 'b' => 2, 'c' => 1), 1));
+print_r(array_values(array('x' => 'a', 'y' => 'b')));
+print_r(array_flip(array('a', 'b', 'a')));
+print_r(array_pad(array(1, 2), 5, 0)); print_r(array_pad(array(1, 2), -5, 0));
+print_r(array_reverse(array('x' => 1, 2, 3), true)); print_r(array_reverse(array('x' => 1, 2, 3)));
+print_r(array_unique(array('a' => 'green', 'red', 'b' => 'green', 'blue', 'red')));
+print_r(array_count_values(array(1, 'hello', 1, 'world', 'hello')));
+print_r(array_diff(array('a' => 'green', 'red', 'blue', 'red'), array('b' => 'green', 'yellow', 'red')));
+print_r(array_intersect(array('a' => 'green', 'red', 'blue'), array('b' => 'green', 'yellow', 'red')));
+print_r(array_filter(array(1, 0, 2, null, 3, '', '0', 'a')));
+print_r(array_map('strtoupper', array('x' => 'a', 'y' => 'b')));
+echo array_sum(array(1, 2.5, '3')), " ", count(array(1, array(2, 3)), COUNT_RECURSIVE), " ", sizeof(array()), "\n";
+print_r(range('a', 'e')); print_r(range(5, 1)); print_r(range(0, 1, 0.25));
+var_dump(in_array("1e1", array("10")), in_array(0, array("a")), in_array("a", array(0)), in_array(null, array(0)), in_array("abc", array(0), true));
+var_dump(array_search("1", array(0, 1, "1")), array_search("x", array()), array_key_exists('a', array('a' => null)), isset($zz['a']));
+$stack = array(1, 2); array_push($stack, 3, 4); echo array_pop($stack), array_shift($stack); array_unshift($stack, 'z'); print_r($stack);
+$w = array('a' => 1, 'b' => 2); echo current($w), key($w), next($w), key($w), var_export(next($w), true), reset($w), end($w), prev($w), "\n";
+$ms1 = array(3, 1, 2); $ms2 = array('c', 'a', 'b'); array_multisort($ms1, $ms2); print_r($ms2);
+$data = array(10, 100, 100, 0); $data2 = array(1, 3, 2, 4); array_multisort($data, SORT_DESC, $data2, SORT_ASC); print_r($data); print_r($data2);
+$wk = array('a' => 1, 'b' => 2); function wk(&$v, $k, $p) { $v = "$p$k$v"; } array_walk($wk, 'wk', '>'); print_r($wk);
+extract(array('ex1' => 'one', 'ex2' => 'two')); echo $ex1, $ex2, "\n";
+$cmp = compact('ex1', 'ex2', 'nonexistent'); print_r($cmp);
+echo implode(",", array_keys(array_fill(5, 3, 'v'))), "\n";
+$nested = array('a' => array('b' => array('c' => 1))); echo $nested['a']['b']['c'], "\n";
+$auto = array(); $auto[] = 1; $auto[10] = 2; $auto[] = 3; $auto["20"] = 4; $auto[] = 5; $auto[-5] = 6; $auto[] = 7; print_r($auto);
+$neg = array(-3 => 'a'); $neg[] = 'b'; print_r($neg);
+var_export(array(1, 'a' => array(true, null, 1.5, "q'uote")));
+echo "\n";
+?>

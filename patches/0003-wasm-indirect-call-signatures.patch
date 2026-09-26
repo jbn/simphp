@@ -1,0 +1,40 @@
+--- a/ext/standard/array.c	2001-11-14 23:28:35
++++ b/ext/standard/array.c	2026-09-25 21:02:16
+@@ -1379,7 +1379,19 @@
+ static int array_data_shuffle(const void *a, const void*b) {
+ 	return (php_rand() % 2) ? 1 : -1;
+ }
++
+ 
++#ifdef __EMSCRIPTEN__
++/* phpsim: wasm traps on indirect calls whose signature differs (int vs void
++ * return); x86 tolerated this cast. */
++static void php_mergesort_void(void *base, size_t nmemb, size_t size, int (*cmp)(const void *, const void *))
++{
++	php_mergesort(base, nmemb, size, cmp);
++}
++#define PHP_MERGESORT_SORT_FUNC ((sort_func_t)php_mergesort_void)
++#else
++#define PHP_MERGESORT_SORT_FUNC ((sort_func_t)php_mergesort)
++#endif
+ 
+ /* {{{ proto int shuffle(array array_arg)
+    Randomly shuffle the contents of an array */
+@@ -1394,7 +1406,7 @@
+ 		php_error(E_WARNING, "Wrong datatype in shuffle() call");
+ 		RETURN_FALSE;
+ 	}
+-	if (zend_hash_sort(Z_ARRVAL_PP(array), (sort_func_t)php_mergesort, array_data_shuffle, 1) == FAILURE) {
++	if (zend_hash_sort(Z_ARRVAL_PP(array), PHP_MERGESORT_SORT_FUNC, array_data_shuffle, 1) == FAILURE) {
+ 		RETURN_FALSE;
+ 	}
+ 	RETURN_TRUE;
+@@ -2790,7 +2802,7 @@
+ 	}  
+ 
+ 	if (num_req_val == num_avail) {
+-		if (zend_hash_sort(Z_ARRVAL_P(return_value), (sort_func_t)php_mergesort, array_data_shuffle, 1) == FAILURE) {
++		if (zend_hash_sort(Z_ARRVAL_P(return_value), PHP_MERGESORT_SORT_FUNC, array_data_shuffle, 1) == FAILURE) {
+ 			zval_dtor(return_value);
+ 			RETURN_FALSE;
+ 		}

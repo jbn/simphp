@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PHP 4.1.1 Simulator</title>
+<meta name="description" content="The original PHP 4.1.1 engine (Zend Engine 1.1.1), compiled to WebAssembly and running in your browser behind a simulated Apache/CGI server.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cellipse cx='32' cy='32' rx='30' ry='17' fill='%234F5B93'/%3E%3Ctext x='32' y='40' font-family='Arial' font-weight='bold' font-style='italic' font-size='22' fill='white' text-anchor='middle'%3Ephp%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">php</span>
+    <div class="brand-text">
+      <h1>PHP 4.1.1 Simulator</h1>
+      <p>Zend Engine v1.1.1 &middot; original C sources compiled to WebAssembly</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <label class="select-wrap" title="Load an example project">
+      <span class="sr-only">Examples</span>
+      <select id="examples"><option value="">Examples&hellip;</option></select>
+    </label>
+    <button id="btn-share" class="btn ghost" title="Copy a link containing all your files">Share</button>
+    <button id="btn-settings" class="btn ghost" title="Server settings" aria-expanded="false">Server</button>
+    <span id="engine-status" class="engine-status loading" title="Engine status">loading engine&hellip;</span>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- Files ---------------------------------------------------------------->
+  <aside class="pane files-pane" aria-label="Files">
+    <div class="pane-head">
+      <span class="pane-title">Server disk</span>
+      <div class="pane-tools">
+        <button id="btn-new-file" class="icon-btn" title="New file">+</button>
+      </div>
+    </div>
+    <div id="file-tree" class="file-tree" role="tree"></div>
+    <div class="files-foot">
+      <button id="btn-reset-tmp" class="link-btn" title="Delete /tmp (sessions, logs, uploads)">clear /tmp</button>
+      <button id="btn-reset-all" class="link-btn danger" title="Start over with an empty server">reset all</button>
+    </div>
+  </aside>
+
+  <!-- Editor --------------------------------------------------------------->
+  <section class="pane editor-pane" aria-label="Editor">
+    <div class="pane-head">
+      <div class="file-tab"><span id="editor-filename">index.php</span><span id="editor-dirty" class="dirty" hidden>&bull;</span></div>
+      <div class="pane-tools">
+        <div class="seg" role="radiogroup" aria-label="Run mode">
+          <button id="mode-web" class="seg-btn active" role="radio" aria-checked="true" title="Run through the simulated Apache + CGI web server">Web</button>
+          <button id="mode-cli" class="seg-btn" role="radio" aria-checked="false" title="Run the CGI binary from a shell, like `php -q script.php`">CLI</button>
+        </div>
+        <button id="btn-run" class="btn primary" title="Run (Ctrl/&#8984; + Enter)">&#9654; Run</button>
+      </div>
+    </div>
+    <div id="editor" class="editor"></div>
+  </section>
+
+  <!-- Browser / terminal ---------------------------------------------------->
+  <section class="pane browser-pane" aria-label="Output">
+    <div id="web-view">
+      <div class="browser-bar">
+        <button id="nav-back" class="icon-btn" title="Back" disabled>&#8592;</button>
+        <button id="nav-fwd" class="icon-btn" title="Forward" disabled>&#8594;</button>
+        <button id="nav-reload" class="icon-btn" title="Reload (re-sends the request)">&#8635;</button>
+        <form id="url-form" class="url-form" autocomplete="off">
+          <span id="url-method" class="method">GET</span>
+          <span class="url-host">http://localhost</span>
+          <input id="url" type="text" spellcheck="false" value="/index.php" aria-label="Path and query string">
+        </form>
+      </div>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="page" role="tab">Page</button>
+        <button class="tab" data-tab="source" role="tab">Source</button>
+        <button class="tab" data-tab="headers" role="tab">Headers</button>
+        <button class="tab" data-tab="request" role="tab">Request</button>
+        <button class="tab" data-tab="log" role="tab">Log <span id="log-badge" class="badge" hidden></span></button>
+      </div>
+      <div class="tab-panels">
+        <div class="tab-panel active" data-panel="page">
+          <iframe id="page-frame" title="Rendered output" sandbox="allow-scripts allow-forms allow-modals"></iframe>
+          <div id="page-empty" class="empty-state">Press <kbd>Run</kbd> to request the page.</div>
+        </div>
+        <div class="tab-panel" data-panel="source"><pre id="source-view" class="code-view"></pre></div>
+        <div class="tab-panel" data-panel="headers"><pre id="headers-view" class="code-view"></pre></div>
+        <div class="tab-panel" data-panel="request">
+          <div class="form-grid">
+            <label>Method
+              <select id="req-method"><option>GET</option><option>POST</option></select>
+            </label>
+            <label>Content-Type
+              <select id="req-ctype">
+                <option value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</option>
+                <option value="text/plain">text/plain</option>
+                <option value="text/xml">text/xml</option>
+              </select>
+            </label>
+            <label class="wide">POST body <small>(sent on stdin, like Apache does for CGI)</small>
+              <textarea id="req-body" rows="4" spellcheck="false" placeholder="name=value&amp;other=1"></textarea>
+            </label>
+            <label class="wide">User-Agent
+              <input id="req-ua" type="text" spellcheck="false">
+            </label>
+            <div class="wide cookie-box">
+              <div class="row-between"><span class="label">Cookie jar</span><button id="btn-clear-cookies" class="link-btn">clear cookies</button></div>
+              <pre id="cookie-view" class="code-view small"></pre>
+            </div>
+          </div>
+          <p class="hint">Links and forms on the rendered page are routed back into the simulated server automatically, carrying cookies, referer and POST data.</p>
+        </div>
+        <div class="tab-panel" data-panel="log"><pre id="log-view" class="code-view"></pre></div>
+      </div>
+    </div>
+
+    <div id="cli-view" hidden>
+      <div class="term-bar">
+        <span class="prompt">$</span>
+        <span class="cmd">php</span>
+        <input id="cli-args" type="text" spellcheck="false" value="-q" aria-label="Command-line flags" title="Flags for the PHP 4.1.1 CGI binary: -q quiet, -s highlight, -l lint, -v version, -i info, -m modules, -d foo=bar, -f file">
+        <span id="cli-script" class="cli-script">index.php</span>
+        <input id="cli-extra" type="text" spellcheck="false" placeholder="args&hellip;" aria-label="Script arguments">
+      </div>
+      <label class="stdin-label">stdin
+        <textarea id="cli-stdin" rows="3" spellcheck="false" placeholder="(piped into the script)"></textarea>
+      </label>
+      <pre id="cli-output" class="terminal" tabindex="0"></pre>
+    </div>
+
+    <div class="statusbar" id="statusbar"><span id="status-text">ready</span></div>
+  </section>
+</main>
+
+<!-- Settings drawer -->
+<div id="settings" class="drawer" hidden>
+  <div class="drawer-inner" role="dialog" aria-label="Server settings">
+    <div class="row-between"><h2>Server</h2><button id="btn-close-settings" class="icon-btn" title="Close">&times;</button></div>
+    <p class="muted">A simulated <code>Apache/1.3.22 (Unix)</code> running PHP 4.1.1 as a CGI binary. Every request starts a fresh PHP process; files under <code>/var/www</code>, <code>/tmp</code> and <code>/etc</code> persist.</p>
+    <label>Time zone (<code>TZ</code> of the server)
+      <select id="set-tz"></select>
+    </label>
+    <label>php.ini
+      <select id="set-ini">
+        <option value="none">none &mdash; built-in defaults (a fresh 4.1.1 install)</option>
+        <option value="dist">php.ini-dist</option>
+        <option value="recommended">php.ini-recommended</option>
+      </select>
+      <small class="muted">Creates <code>/etc/php.ini</code>, which you can then edit in the file list.</small>
+    </label>
+    <label>Hard kill after (seconds)
+      <input id="set-kill" type="number" min="5" max="600" value="60">
+      <small class="muted">PHP's own <code>max_execution_time</code> (30s) normally fires first; this stops runaway scripts that disabled it.</small>
+    </label>
+    <label>Page encoding
+      <select id="set-charset">
+        <option value="auto">auto (UTF-8 if valid, else Windows-1252)</option>
+        <option value="windows-1252">Western (ISO-8859-1 / Windows-1252)</option>
+        <option value="utf-8">UTF-8</option>
+      </select>
+    </label>
+    <div class="setting-block">
+      <label class="check"><input id="set-mysql" type="checkbox" checked> MySQL server running</label>
+      <small class="muted">An emulated MySQL 3.23.49 server on <code>/tmp/mysql.sock</code> and port 3306, backed by SQLite. PHP's real <code>mysql_*</code> functions and client library talk to it. Any user/password is accepted (like <code>--skip-grant-tables</code>). Turn it off to get the classic "Can't connect to local MySQL server" error. <button id="btn-reset-mysql" class="link-btn danger" type="button">reset databases</button></small>
+    </div>
+    <label class="check"><input id="set-follow" type="checkbox" checked> Follow <code>Location:</code> redirects</label>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/php/php.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/properties/properties.min.js"></script>
+<script src="phpsim-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

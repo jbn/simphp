@@ -1,0 +1,58 @@
+--- a/Zend/zend_execute_API.c	2001-12-16 21:22:24
++++ b/Zend/zend_execute_API.c	2026-09-25 20:37:47
+@@ -756,6 +756,14 @@
+ 	PostThreadMessage(timeout_thread_id, WM_QUIT, 0, 0);
+ }
+ 
++#endif
++
++#ifdef __EMSCRIPTEN__
++/* phpsim: wasm has no signals, so ITIMER_PROF/SIGPROF cannot interrupt the
++ * engine. Instead the executor polls a CPU-time deadline (see zend_execute.c),
++ * the same approach Zend uses on Win32 with EG(timed_out). */
++extern double phpsim_cpu_ms(void);
++ZEND_API double phpsim_timeout_deadline = 0;
+ #endif
+ 
+ /* This one doesn't exists on QNX */
+@@ -776,6 +784,8 @@
+ 		zend_init_timeout_thread();
+ 	}
+ 	PostThreadMessage(timeout_thread_id, WM_REGISTER_ZEND_TIMEOUT, (WPARAM) GetCurrentThreadId(), (LPARAM) seconds);
++#elif defined(__EMSCRIPTEN__)
++	phpsim_timeout_deadline = seconds > 0 ? phpsim_cpu_ms() + seconds * 1000.0 : 0;
+ #else
+ #	ifdef HAVE_SETITIMER
+ 	{
+@@ -800,6 +810,8 @@
+ {
+ #ifdef ZEND_WIN32
+ 	PostThreadMessage(timeout_thread_id, WM_UNREGISTER_ZEND_TIMEOUT, (WPARAM) GetCurrentThreadId(), (LPARAM) 0);
++#elif defined(__EMSCRIPTEN__)
++	phpsim_timeout_deadline = 0;
+ #else
+ #	ifdef HAVE_SETITIMER
+ 	{
+--- a/Zend/zend_execute.c	2001-12-16 21:22:24
++++ b/Zend/zend_execute.c	2026-09-25 20:37:47
+@@ -1044,7 +1044,20 @@
+ 			zend_timeout(0);
+ 		}
+ #endif
++#ifdef __EMSCRIPTEN__
++		{
++			extern double phpsim_timeout_deadline;
++			extern double phpsim_cpu_ms(void);
++			static unsigned int phpsim_tick;
+ 
++			if (phpsim_timeout_deadline && !(++phpsim_tick & 0xFFF)
++				&& phpsim_cpu_ms() >= phpsim_timeout_deadline) {
++				phpsim_timeout_deadline = 0;
++				zend_timeout(0);
++			}
++		}
++#endif
++
+ 		zend_clean_garbage(TSRMLS_C);
+ 
+ 		switch(opline->opcode) {

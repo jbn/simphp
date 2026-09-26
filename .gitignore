@@ -1,0 +1,8 @@
+build/
+tools/
+node_modules/
+tests/corpus/.ref/
+reference/php-4.1.1.tar.gz
+reference/build.log
+/php-4.1.1.tar.gz
+/vendor/

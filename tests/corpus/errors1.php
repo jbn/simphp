@@ -1,0 +1,37 @@
+<?php
+echo error_reporting(), "\n";
+echo $undef1;
+echo "after notice\n";
+error_reporting(E_ALL);
+echo $undef2;
+$arr = array(); echo $arr['nokey']; echo $arr[5];
+echo UNDEF_CONST, "\n";
+$str = "abc"; echo $str[10], "|\n";
+echo 1 / 0, "|\n";
+echo 5 % 0, "|\n";
+strlen();
+strlen("a", "b");
+substr("abc");
+array_merge(1, 2);
+implode(",", "notarray");
+$x = array(1); echo "arr: $x\n";
+$o = new stdClass; echo $o->nope, "|\n";
+fopen("/nonexistent/file", "r");
+include("/nonexistent.php");
+@include("/nonexistent2.php");
+echo @$undef3, "|\n";
+ini_set('track_errors', 1); @strpos(); echo $php_errormsg, "\n";
+trigger_error("user notice", E_USER_NOTICE);
+trigger_error("user warning", E_USER_WARNING);
+function handler($no, $str, $file, $line) { echo "HANDLED[$no]: $str at line $line\n"; }
+set_error_handler('handler');
+echo $undef4;
+trigger_error("custom", E_USER_ERROR);
+strlen();
+restore_error_handler();
+ini_set('display_errors', 0); echo $undef5; ini_set('display_errors', 1);
+ini_set('html_errors', 0); echo $undef6;
+error_reporting(E_ALL & ~E_NOTICE); echo $undef7;
+echo "before fatal\n";
+$o->method();
+echo "not reached\n";

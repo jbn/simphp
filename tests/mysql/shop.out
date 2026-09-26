@@ -1,0 +1,55 @@
+1007: Can't create database 'shop'. Database exists
+multi insert id 1 rows 3
+insert set id 4
+id for 0: 5
+1062 Duplicate entry 'books' for key 2
+1|Books|A very lon|used|a,c|10.00|32767|19
+2|Music|Tab	here|||1.50|-5|19
+3|Books|O'Brien|new|||3|19
+seek: Tab	here table=cat
+Books,2,32770
+Music,1,-5
+1 like rows
+replace affected 2
+update limit 1
+delete limit 1
+CREATE TABLE `item` (
+  `id` int(11) NOT NULL auto_increment,
+  `cat_id` tinyint(4) NOT NULL default '0',
+  `title` varchar(10) default NULL,
+  `status` enum('new','used','broken') NOT NULL default 'new',
+  `price` float(7,2) default NULL,
+  `quantity` int(11) NOT NULL default '0',
+  `changed` timestamp(14) default NULL,
+  `note` text default NULL,
+  PRIMARY KEY (`id`),
+  KEY `cat_id` (`cat_id`)
+) TYPE=MyISAM
+quantity|int(11)|||0|
+6100625c632722 7 6100625C632722
+Array
+(
+    [0] => 2002-01-01
+    [1] => 2002-01-26
+    [2] => 731210
+    [3] => 
+    [4] => def
+    [5] => 2
+    [6] => 3
+    [7] => 0
+    [8] => 0
+    [9] => 0
+    [10] => -1
+    [11] => 2
+    [12] => a.b
+    [13] => 2
+    [14] => 2.6
+    [15] => -2
+    [16] => 1
+)
+2 tables; 2 status rows
+1051: Unknown table 'nope'
+1064: You have an error in your SQL syntax near '; DROP TABLE item' at line 1
+1065: Query was empty
+dropped: 0
+1049: Unknown database 'shop'
