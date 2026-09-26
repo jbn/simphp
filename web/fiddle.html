@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PHP 4.1.1 Fiddle</title>
+<meta name="description" content="Write, run and save multi-file PHP 4.1.1 projects in your browser. The original Zend Engine 1.1.1, compiled to WebAssembly.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cellipse cx='32' cy='32' rx='30' ry='17' fill='%234F5B93'/%3E%3Ctext x='32' y='40' font-family='Arial' font-weight='bold' font-style='italic' font-size='22' fill='white' text-anchor='middle'%3Ephp%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="fiddle.css">
+</head>
+<body class="fiddle">
+<header class="fz-top">
+  <button id="btn-side" class="icon-btn" title="Show or hide the sidebar" aria-expanded="true" aria-controls="side">&#9776;</button>
+  <a class="fz-brand" href="fiddle.html" title="PHP 4.1.1 Fiddle">
+    <span class="logo" aria-hidden="true">php</span>
+    <span class="fz-brand-text">4.1.1 Fiddle</span>
+  </a>
+  <div class="fz-actions">
+    <button id="btn-run" class="btn primary" title="Run (Ctrl/&#8984; + Enter)">&#9654; Run</button>
+    <button id="btn-new" class="btn" title="Start a new fiddle">New</button>
+    <button id="btn-fork" class="btn" title="Save a copy of this fiddle and switch to it">Fork</button>
+    <button id="btn-share" class="btn" title="Copy a link containing all the files of this fiddle">Share</button>
+  </div>
+  <div class="fz-title">
+    <input id="project-name" type="text" spellcheck="false" aria-label="Fiddle name" maxlength="80">
+    <span id="save-state" class="save-state" title="Saved in this browser (IndexedDB)">saved</span>
+  </div>
+  <div class="fz-right">
+    <div class="seg" role="radiogroup" aria-label="Run mode">
+      <button id="mode-web" class="seg-btn active" role="radio" aria-checked="true" title="Run through the simulated Apache + CGI web server">Web</button>
+      <button id="mode-cli" class="seg-btn" role="radio" aria-checked="false" title="Run the CGI binary from a shell, like `php -q script.php`">CLI</button>
+    </div>
+    <label class="fz-check" title="Run again shortly after you stop typing"><input id="set-autorun" type="checkbox"> Auto-run</label>
+    <button id="btn-settings" class="btn ghost" title="Server settings for this fiddle" aria-expanded="false">Settings</button>
+    <a class="btn ghost" href="index.html" title="The single-workspace simulator">Classic</a>
+    <span id="engine-status" class="engine-status loading" title="Engine status">loading&hellip;</span>
+  </div>
+</header>
+
+<div class="fz-body">
+  <!-- Sidebar ---------------------------------------------------------------->
+  <aside id="side" class="fz-side" aria-label="Fiddles and files">
+    <section class="side-sec">
+      <div class="side-head">
+        <span class="pane-title">Files</span>
+        <div class="pane-tools">
+          <button id="btn-new-file" class="icon-btn" title="New file (you can type a path like lib/db.php)">+</button>
+          <label class="icon-btn" title="Upload files into the web root">&#8679;<input id="upload" type="file" multiple hidden></label>
+        </div>
+      </div>
+      <div id="file-list" class="fz-files" role="tree" aria-label="Files in /var/www"></div>
+      <p class="side-note">Web root: <code>/var/www</code>. <span class="entry-star">&#9733;</span> marks the entry page.</p>
+    </section>
+
+    <details id="server-sec" class="side-sec">
+      <summary class="side-head"><span class="pane-title">Server state</span><span id="server-count" class="count"></span></summary>
+      <div id="server-list" class="fz-files"></div>
+      <div class="side-foot">
+        <button id="btn-reset-state" class="link-btn danger" title="Delete /tmp, mail, MySQL databases and cookies of this fiddle">reset server state</button>
+      </div>
+    </details>
+
+    <section class="side-sec grow">
+      <div class="side-head">
+        <span class="pane-title">My fiddles</span>
+        <span id="project-count" class="count"></span>
+      </div>
+      <input id="project-filter" class="side-filter" type="search" placeholder="Filter&hellip;" aria-label="Filter fiddles">
+      <div id="project-list" class="fz-projects"></div>
+    </section>
+
+    <details class="side-sec">
+      <summary class="side-head"><span class="pane-title">Start from an example</span></summary>
+      <div id="example-list" class="fz-projects"></div>
+    </details>
+  </aside>
+
+  <!-- Editor + output -------------------------------------------------------->
+  <main id="work" class="fz-work">
+    <section class="pane fz-editor-pane" aria-label="Editor">
+      <div class="fz-tabs" id="file-tabs" role="tablist"></div>
+      <div id="editor" class="editor"></div>
+    </section>
+
+    <div id="gutter" class="fz-gutter" role="separator" aria-orientation="vertical" aria-label="Resize editor and output" tabindex="0"></div>
+
+    <section class="pane fz-output-pane" aria-label="Output">
+      <div id="web-view" class="fz-view">
+        <div class="browser-bar">
+          <button id="nav-back" class="icon-btn" title="Back" disabled>&#8592;</button>
+          <button id="nav-fwd" class="icon-btn" title="Forward" disabled>&#8594;</button>
+          <button id="nav-reload" class="icon-btn" title="Reload (re-sends the request)">&#8635;</button>
+          <button id="nav-home" class="icon-btn" title="Go to the entry page">&#8962;</button>
+          <form id="url-form" class="url-form" autocomplete="off">
+            <span id="url-method" class="method">GET</span>
+            <span class="url-host">http://localhost</span>
+            <input id="url" type="text" spellcheck="false" value="/index.php" aria-label="Path and query string">
+          </form>
+        </div>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="page" role="tab">Result</button>
+          <button class="tab" data-tab="source" role="tab">Source</button>
+          <button class="tab" data-tab="headers" role="tab">Headers</button>
+          <button class="tab" data-tab="request" role="tab">Request</button>
+          <button class="tab" data-tab="log" role="tab">Console <span id="log-badge" class="badge" hidden></span></button>
+        </div>
+        <div class="tab-panels">
+          <div class="tab-panel active" data-panel="page">
+            <iframe id="page-frame" title="Rendered output" sandbox="allow-scripts allow-forms allow-modals"></iframe>
+            <div id="page-empty" class="empty-state">Press <kbd>Run</kbd> to request the page.</div>
+          </div>
+          <div class="tab-panel" data-panel="source"><pre id="source-view" class="code-view"></pre></div>
+          <div class="tab-panel" data-panel="headers"><pre id="headers-view" class="code-view"></pre></div>
+          <div class="tab-panel" data-panel="request">
+            <div class="form-grid">
+              <label>Method
+                <select id="req-method"><option>GET</option><option>POST</option></select>
+              </label>
+              <label>Content-Type
+                <select id="req-ctype">
+                  <option value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</option>
+                  <option value="text/plain">text/plain</option>
+                  <option value="text/xml">text/xml</option>
+                </select>
+              </label>
+              <label class="wide">POST body <small>(sent on stdin, like Apache does for CGI)</small>
+                <textarea id="req-body" rows="4" spellcheck="false" placeholder="name=value&amp;other=1"></textarea>
+              </label>
+              <label class="wide">User-Agent
+                <input id="req-ua" type="text" spellcheck="false">
+              </label>
+              <div class="wide cookie-box">
+                <div class="row-between"><span class="label">Cookie jar</span><button id="btn-clear-cookies" class="link-btn">clear cookies</button></div>
+                <pre id="cookie-view" class="code-view small"></pre>
+              </div>
+            </div>
+            <p class="hint">Links and forms on the rendered page go back into the simulated server, carrying cookies, referer and POST data. Type a URL and press Enter to send this request.</p>
+          </div>
+          <div class="tab-panel" data-panel="log">
+            <div class="log-tools"><button id="btn-clear-log" class="link-btn">clear</button></div>
+            <pre id="log-view" class="code-view"></pre>
+          </div>
+        </div>
+      </div>
+
+      <div id="cli-view" class="fz-view" hidden>
+        <div class="term-bar">
+          <span class="prompt">$</span>
+          <span class="cmd">php</span>
+          <input id="cli-args" type="text" spellcheck="false" value="-q" aria-label="Command-line flags" title="Flags for the PHP 4.1.1 CGI binary: -q quiet, -s highlight, -l lint, -v version, -i info, -m modules, -d foo=bar">
+          <select id="cli-script" aria-label="Script to run"></select>
+          <input id="cli-extra" type="text" spellcheck="false" placeholder="args&hellip;" aria-label="Script arguments">
+        </div>
+        <label class="stdin-label">stdin
+          <textarea id="cli-stdin" rows="3" spellcheck="false" placeholder="(piped into the script)"></textarea>
+        </label>
+        <pre id="cli-output" class="terminal" tabindex="0"></pre>
+      </div>
+
+      <div class="statusbar"><span id="status-text">ready</span></div>
+    </section>
+  </main>
+</div>
+
+<!-- Settings drawer -->
+<div id="settings" class="drawer" hidden>
+  <div class="drawer-inner" role="dialog" aria-label="Fiddle settings">
+    <div class="row-between"><h2>Settings</h2><button id="btn-close-settings" class="icon-btn" title="Close">&times;</button></div>
+    <p class="muted">Server settings belong to this fiddle. A simulated <code>Apache/1.3.22 (Unix)</code> runs PHP 4.1.1 as a CGI binary, one fresh process per request.</p>
+    <label>Time zone (<code>TZ</code> of the server)
+      <select id="set-tz"></select>
+    </label>
+    <label>php.ini
+      <select id="set-ini">
+        <option value="none">none &mdash; built-in defaults (a fresh 4.1.1 install)</option>
+        <option value="dist">php.ini-dist</option>
+        <option value="recommended">php.ini-recommended</option>
+      </select>
+      <small class="muted">Creates <code>/etc/php.ini</code>, which then appears under Server state for editing.</small>
+    </label>
+    <label>Hard kill after (seconds)
+      <input id="set-kill" type="number" min="5" max="600" value="60">
+      <small class="muted">PHP's own <code>max_execution_time</code> (30s) normally fires first.</small>
+    </label>
+    <label>Page encoding
+      <select id="set-charset">
+        <option value="auto">auto (UTF-8 if valid, else Windows-1252)</option>
+        <option value="windows-1252">Western (ISO-8859-1 / Windows-1252)</option>
+        <option value="utf-8">UTF-8</option>
+      </select>
+    </label>
+    <div class="setting-block">
+      <label class="check"><input id="set-mysql" type="checkbox" checked> MySQL server running</label>
+      <small class="muted">An emulated MySQL 3.23.49 on <code>/tmp/mysql.sock</code> and port 3306, backed by SQLite. Each fiddle has its own databases.</small>
+    </div>
+    <label class="check"><input id="set-follow" type="checkbox" checked> Follow <code>Location:</code> redirects</label>
+    <h2 class="drawer-sub">Editor</h2>
+    <label class="check"><input id="set-wrap" type="checkbox"> Wrap long lines</label>
+    <p class="muted small">Fiddles are saved in this browser's IndexedDB as you type. <span id="storage-info"></span></p>
+    <button id="btn-delete-project" class="btn danger-btn" type="button">Delete this fiddle</button>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/php/php.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/properties/properties.min.js"></script>
+<script src="simphp-core.js"></script>
+<script src="simweb.js"></script>
+<script src="fiddle-store.js"></script>
+<script src="fiddle.js"></script>
+</body>
+</html>

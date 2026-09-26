@@ -18,6 +18,11 @@ npm start            # http://localhost:8411/
 
 ## What you get
 
+* **Fiddle** (`/fiddle.html`): a jsfiddle-style editor for many projects. Each
+  fiddle has its own files and folders (tabs, rename, upload, an entry page),
+  server state (`/tmp`, MySQL databases, cookies) and settings. Fiddles are
+  saved to IndexedDB as you type, so a reload picks up where you left off, and
+  **New**, **Fork**, **Share** and **Examples** each create a new fiddle.
 * **Editor + a virtual server disk**: files under `/var/www`, plus `/etc/php.ini`,
   `/tmp` (sessions, uploads, logs), `/var/mail` and `/var/lib/mysql`. Everything
   persists in your browser.
@@ -146,7 +151,8 @@ src/simphp_sys.c       libc replacements: qsort, random, strftime, popen, socket
 src/simphp_lib.js      Emscripten JS library: clock, time zones, CPU time, socket services
 src/simphp_shell.js    the emulated /bin/sh (+ sendmail)
 src/simphp_force.h     force-included into the PHP build (errno/strftime redirections)
-web/                   the app: index.html, app.js, worker.js, simphp-core.js, mysqld.js, php*.wasm
+web/                   the app: index.html + app.js (classic), fiddle.html + fiddle.js + fiddle-store.js (fiddles),
+                       simweb.js (web server shared by both), worker.js, simphp-core.js, mysqld.js, php*.wasm
 bin/php411.js          PHP 4.1.1 in your terminal: node bin/php411.js -q script.php
 bin/serve.js           static server for web/
 tests/                 phpt runner, differential tests (+ corpus), MySQL snapshots
