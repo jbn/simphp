@@ -1,5 +1,5 @@
 /*
- * phpsim: small libc replacements linked ahead of emscripten's libc.
+ * simphp: small libc replacements linked ahead of emscripten's libc.
  */
 #include <time.h>
 #include <errno.h>
@@ -9,9 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Implemented in phpsim_lib.js: blocks for `ms` and records it as sleeping
+/* Implemented in simphp_lib.js: blocks for `ms` and records it as sleeping
  * time, so it is excluded from CPU time (max_execution_time), as on Linux. */
-extern void phpsim_sleep_ms(double ms);
+extern void simphp_sleep_ms(double ms);
 
 int nanosleep(const struct timespec *req, struct timespec *rem)
 {
@@ -19,7 +19,7 @@ int nanosleep(const struct timespec *req, struct timespec *rem)
 		errno = EINVAL;
 		return -1;
 	}
-	phpsim_sleep_ms(req->tv_sec * 1000.0 + req->tv_nsec / 1e6);
+	simphp_sleep_ms(req->tv_sec * 1000.0 + req->tv_nsec / 1e6);
 	if (rem) {
 		rem->tv_sec = 0;
 		rem->tv_nsec = 0;
@@ -163,7 +163,7 @@ static long double x87_pow10i(int y)
 /* PHP 4.1.1 round() as compiled by gcc -O2 for i386:
  *   v = value * f; v = v >= 0 ? floor(v + 0.5) : ceil(v - 0.5); v /= f;
  * all in extended precision, rounded to double only at the end. */
-double phpsim_x87_round(double value, int places)
+double simphp_x87_round(double value, int places)
 {
 	long double f;
 
@@ -215,7 +215,7 @@ char *setlocale(int category, const char *name)
  * i386 build produces for a freshly generated NaN (glibc's libm varies).
  * Only bitwise operations are used to build the result, so it is exact.
  */
-double phpsim_nan_fix(double r, double a, double b, int newsign)
+double simphp_nan_fix(double r, double a, double b, int newsign)
 {
 	if (r == r) return r;
 	if (a != a) return a;
@@ -240,7 +240,7 @@ int res_search(const char *dname, int class, int type, unsigned char *answer, in
 /*
  * Processes. wasm cannot fork, but PHP only ever starts programs through
  * popen() (exec, system, passthru, shell_exec, `backticks`, popen(), mail()).
- * Commands are handed to a small /bin/sh emulation (phpsim_shell.js) that runs
+ * Commands are handed to a small /bin/sh emulation (simphp_shell.js) that runs
  * against the same filesystem; the pipe itself is a temporary file.
  *   "r": the command runs immediately, its stdout is read back by PHP.
  *   "w": PHP writes the command's stdin; it runs at pclose() (e.g. sendmail).
@@ -248,21 +248,21 @@ int res_search(const char *dname, int class, int type, unsigned char *answer, in
  */
 #include <stdio.h>
 
-extern int phpsim_shell(const char *cmd, const char *input, int input_len, char **out, int *out_len);
+extern int simphp_shell(const char *cmd, const char *input, int input_len, char **out, int *out_len);
 
-typedef struct phpsim_pipe {
+typedef struct simphp_pipe {
 	FILE *fp;
 	char *cmd;
 	int writing;
 	int status;
-	struct phpsim_pipe *next;
-} phpsim_pipe;
+	struct simphp_pipe *next;
+} simphp_pipe;
 
-static phpsim_pipe *phpsim_pipes;
+static simphp_pipe *simphp_pipes;
 
 FILE *popen(const char *cmd, const char *mode)
 {
-	phpsim_pipe *p;
+	simphp_pipe *p;
 	FILE *fp;
 
 	if (!cmd || !mode || (mode[0] != 'r' && mode[0] != 'w')) {
@@ -280,22 +280,22 @@ FILE *popen(const char *cmd, const char *mode)
 		int len = 0;
 
 		fflush(stdout);
-		p->status = phpsim_shell(cmd, NULL, 0, &out, &len);
+		p->status = simphp_shell(cmd, NULL, 0, &out, &len);
 		if (len > 0) fwrite(out, 1, len, fp);
 		free(out);
 		rewind(fp);
 	}
-	p->next = phpsim_pipes;
-	phpsim_pipes = p;
+	p->next = simphp_pipes;
+	simphp_pipes = p;
 	return fp;
 }
 
 int pclose(FILE *fp)
 {
-	phpsim_pipe **pp, *p;
+	simphp_pipe **pp, *p;
 	int status;
 
-	for (pp = &phpsim_pipes; *pp && (*pp)->fp != fp; pp = &(*pp)->next);
+	for (pp = &simphp_pipes; *pp && (*pp)->fp != fp; pp = &(*pp)->next);
 	if (!*pp) {
 		errno = ECHILD;
 		return -1;
@@ -314,7 +314,7 @@ int pclose(FILE *fp)
 		rewind(fp);
 		size = (long) fread(in, 1, size, fp);
 		fflush(stdout);
-		status = phpsim_shell(p->cmd, in, (int) size, &out, &len);
+		status = simphp_shell(p->cmd, in, (int) size, &out, &len);
 		if (len > 0) fwrite(out, 1, len, stdout);   /* child inherits our stdout */
 		free(in);
 		free(out);
@@ -332,7 +332,7 @@ int pclose(FILE *fp)
 #include <pwd.h>
 #include <grp.h>
 
-static char *phpsim_field(char **p)
+static char *simphp_field(char **p)
 {
 	char *start = *p, *c = strchr(start, ':');
 
@@ -340,7 +340,7 @@ static char *phpsim_field(char **p)
 	return start;
 }
 
-static struct passwd *phpsim_pwscan(int by_uid, uid_t uid, const char *name)
+static struct passwd *simphp_pwscan(int by_uid, uid_t uid, const char *name)
 {
 	static struct passwd pw;
 	static char line[512];
@@ -351,13 +351,13 @@ static struct passwd *phpsim_pwscan(int by_uid, uid_t uid, const char *name)
 		char *p = line, *nl = strchr(line, '\n');
 
 		if (nl) *nl = '\0';
-		pw.pw_name = phpsim_field(&p);
-		pw.pw_passwd = phpsim_field(&p);
-		pw.pw_uid = (uid_t) atoi(phpsim_field(&p));
-		pw.pw_gid = (gid_t) atoi(phpsim_field(&p));
-		pw.pw_gecos = phpsim_field(&p);
-		pw.pw_dir = phpsim_field(&p);
-		pw.pw_shell = phpsim_field(&p);
+		pw.pw_name = simphp_field(&p);
+		pw.pw_passwd = simphp_field(&p);
+		pw.pw_uid = (uid_t) atoi(simphp_field(&p));
+		pw.pw_gid = (gid_t) atoi(simphp_field(&p));
+		pw.pw_gecos = simphp_field(&p);
+		pw.pw_dir = simphp_field(&p);
+		pw.pw_shell = simphp_field(&p);
 		if (by_uid ? pw.pw_uid == uid : !strcmp(pw.pw_name, name)) {
 			fclose(f);
 			return &pw;
@@ -367,10 +367,10 @@ static struct passwd *phpsim_pwscan(int by_uid, uid_t uid, const char *name)
 	return NULL;
 }
 
-struct passwd *phpsim_getpwuid(uid_t uid) { return phpsim_pwscan(1, uid, NULL); }
-struct passwd *phpsim_getpwnam(const char *name) { return name ? phpsim_pwscan(0, 0, name) : NULL; }
+struct passwd *simphp_getpwuid(uid_t uid) { return simphp_pwscan(1, uid, NULL); }
+struct passwd *simphp_getpwnam(const char *name) { return name ? simphp_pwscan(0, 0, name) : NULL; }
 
-static struct group *phpsim_grscan(int by_gid, gid_t gid, const char *name)
+static struct group *simphp_grscan(int by_gid, gid_t gid, const char *name)
 {
 	static struct group gr;
 	static char line[512];
@@ -383,9 +383,9 @@ static struct group *phpsim_grscan(int by_gid, gid_t gid, const char *name)
 		int n = 0;
 
 		if (nl) *nl = '\0';
-		gr.gr_name = phpsim_field(&p);
-		gr.gr_passwd = phpsim_field(&p);
-		gr.gr_gid = (gid_t) atoi(phpsim_field(&p));
+		gr.gr_name = simphp_field(&p);
+		gr.gr_passwd = simphp_field(&p);
+		gr.gr_gid = (gid_t) atoi(simphp_field(&p));
 		for (m = strtok(p, ","); m && n < 31; m = strtok(NULL, ",")) members[n++] = m;
 		members[n] = NULL;
 		gr.gr_mem = members;
@@ -398,8 +398,8 @@ static struct group *phpsim_grscan(int by_gid, gid_t gid, const char *name)
 	return NULL;
 }
 
-struct group *phpsim_getgrgid(gid_t gid) { return phpsim_grscan(1, gid, NULL); }
-struct group *phpsim_getgrnam(const char *name) { return name ? phpsim_grscan(0, 0, name) : NULL; }
+struct group *simphp_getgrgid(gid_t gid) { return simphp_grscan(1, gid, NULL); }
+struct group *simphp_getgrnam(const char *name) { return name ? simphp_grscan(0, 0, name) : NULL; }
 
 /* Each request is a new Apache/CGI child: give it a plausible PID instead of
  * emscripten's constant 42. */
@@ -415,23 +415,23 @@ pid_t __syscall_getpid(void)
 
 /*
  * errno values as Linux i386 numbers them, for the places where PHP shows them
- * (see phpsim_errno.h), and glibc's strerror() texts.
+ * (see simphp_errno.h), and glibc's strerror() texts.
  */
-#include "phpsim_errno_table.c"
+#include "simphp_errno_table.c"
 
-int phpsim_linux_errno(int e)
+int simphp_linux_errno(int e)
 {
-	if (e > 0 && e < (int) sizeof(phpsim_wasm_to_linux) && phpsim_wasm_to_linux[e]) return phpsim_wasm_to_linux[e];
+	if (e > 0 && e < (int) sizeof(simphp_wasm_to_linux) && simphp_wasm_to_linux[e]) return simphp_wasm_to_linux[e];
 	return e;
 }
 
-char *phpsim_strerror(int e)
+char *simphp_strerror(int e)
 {
 	static char buf[40];
-	int l = phpsim_linux_errno(e);
+	int l = simphp_linux_errno(e);
 
-	if (l >= 0 && l < (int) (sizeof(phpsim_glibc_errmsg) / sizeof(phpsim_glibc_errmsg[0])))
-		return (char *) phpsim_glibc_errmsg[l];
+	if (l >= 0 && l < (int) (sizeof(simphp_glibc_errmsg) / sizeof(simphp_glibc_errmsg[0])))
+		return (char *) simphp_glibc_errmsg[l];
 	sprintf(buf, "Unknown error %d", l);
 	return buf;
 }
@@ -453,10 +453,10 @@ char *phpsim_strerror(int e)
 #include <unistd.h>
 #include <strings.h>
 
-#define PHPSIM_MAXFD 1024
-static unsigned char phpsim_sockfd[PHPSIM_MAXFD];
+#define SIMPHP_MAXFD 1024
+static unsigned char simphp_sockfd[SIMPHP_MAXFD];
 
-static int phpsim_is_sock(int fd) { return fd >= 0 && fd < PHPSIM_MAXFD && phpsim_sockfd[fd]; }
+static int simphp_is_sock(int fd) { return fd >= 0 && fd < SIMPHP_MAXFD && simphp_sockfd[fd]; }
 
 int socket(int domain, int type, int protocol)
 {
@@ -468,24 +468,24 @@ int socket(int domain, int type, int protocol)
 		return -1;
 	}
 	fd = open("/dev/null", O_RDWR);
-	if (fd >= 0 && fd < PHPSIM_MAXFD) phpsim_sockfd[fd] = 1 + (type & 0xf);
+	if (fd >= 0 && fd < SIMPHP_MAXFD) simphp_sockfd[fd] = 1 + (type & 0xf);
 	return fd;
 }
 
-/* Local services implemented in JS (phpsim_lib.js / mysqld.js): returns
+/* Local services implemented in JS (simphp_lib.js / mysqld.js): returns
  * nonzero when something is listening and the connection was accepted. */
-extern int phpsim_service_connect(int fd, const char *unix_path, int port);
-#define PHPSIM_SOCK_SERVICE 0x40
+extern int simphp_service_connect(int fd, const char *unix_path, int port);
+#define SIMPHP_SOCK_SERVICE 0x40
 
 int connect(int fd, const struct sockaddr *addr, socklen_t len)
 {
 	(void) len;
-	if (!phpsim_is_sock(fd)) { errno = ENOTSOCK; return -1; }
+	if (!simphp_is_sock(fd)) { errno = ENOTSOCK; return -1; }
 	if (addr->sa_family == AF_UNIX) {
 		struct stat st;
 		const struct sockaddr_un *un = (const struct sockaddr_un *) addr;
 
-		if (phpsim_service_connect(fd, un->sun_path, 0)) { phpsim_sockfd[fd] |= PHPSIM_SOCK_SERVICE; return 0; }
+		if (simphp_service_connect(fd, un->sun_path, 0)) { simphp_sockfd[fd] |= SIMPHP_SOCK_SERVICE; return 0; }
 		errno = stat(un->sun_path, &st) ? ENOENT : ECONNREFUSED;
 		return -1;
 	}
@@ -493,8 +493,8 @@ int connect(int fd, const struct sockaddr *addr, socklen_t len)
 		const struct sockaddr_in *in = (const struct sockaddr_in *) addr;
 		uint32_t ip = ntohl(in->sin_addr.s_addr);
 
-		if (((ip >> 24) == 127 || ip == 0) && phpsim_service_connect(fd, NULL, ntohs(in->sin_port))) {
-			phpsim_sockfd[fd] |= PHPSIM_SOCK_SERVICE;
+		if (((ip >> 24) == 127 || ip == 0) && simphp_service_connect(fd, NULL, ntohs(in->sin_port))) {
+			simphp_sockfd[fd] |= SIMPHP_SOCK_SERVICE;
 			return 0;
 		}
 		errno = ((ip >> 24) == 127 || ip == 0) ? ECONNREFUSED : ENETUNREACH;
@@ -513,25 +513,25 @@ int connect(int fd, const struct sockaddr *addr, socklen_t len)
 int setsockopt(int fd, int level, int name, const void *val, socklen_t len)
 {
 	(void) level; (void) name; (void) val; (void) len;
-	if (!phpsim_is_sock(fd)) { errno = ENOTSOCK; return -1; }
+	if (!simphp_is_sock(fd)) { errno = ENOTSOCK; return -1; }
 	return 0;
 }
 
 int getsockopt(int fd, int level, int name, void *val, socklen_t *len)
 {
 	(void) level; (void) name;
-	if (!phpsim_is_sock(fd)) { errno = ENOTSOCK; return -1; }
+	if (!simphp_is_sock(fd)) { errno = ENOTSOCK; return -1; }
 	if (val && len && *len >= sizeof(int)) { *(int *) val = 0; *len = sizeof(int); }
 	return 0;
 }
 
-static int phpsim_resolve(const char *name, struct in_addr *out, const char **canon)
+static int simphp_resolve(const char *name, struct in_addr *out, const char **canon)
 {
 	if (!name) return 0;
 	if (inet_aton(name, out)) { *canon = name; return 1; }
-	if (!strcasecmp(name, "localhost") || !strcasecmp(name, "localhost.localdomain") || !strcasecmp(name, "phpsim")) {
+	if (!strcasecmp(name, "localhost") || !strcasecmp(name, "localhost.localdomain") || !strcasecmp(name, "simphp")) {
 		out->s_addr = htonl(0x7f000001);
-		*canon = "phpsim";        /* first name on the /etc/hosts line */
+		*canon = "simphp";        /* first name on the /etc/hosts line */
 		return 1;
 	}
 	return 0;
@@ -544,7 +544,7 @@ struct hostent *gethostbyname(const char *name)
 	static char *addrs[2], *aliases[1], cname[256];
 	const char *canon;
 
-	if (!phpsim_resolve(name, &addr, &canon)) {
+	if (!simphp_resolve(name, &addr, &canon)) {
 		h_errno = TRY_AGAIN;   /* no DNS server answers */
 		errno = EAGAIN;        /* left behind by the resolver's failed send */
 		return NULL;
@@ -590,7 +590,7 @@ struct hostent *gethostbyaddr(const void *a, socklen_t len, int type)
 {
 	static struct hostent he;
 	static struct in_addr addr;
-	static char *addrs[2], *aliases[3], name[] = "phpsim", al1[] = "localhost.localdomain", al2[] = "localhost";
+	static char *addrs[2], *aliases[3], name[] = "simphp", al1[] = "localhost.localdomain", al2[] = "localhost";
 
 	if (type != AF_INET || len != 4 || (ntohl(((const struct in_addr *) a)->s_addr) >> 24) != 127) {
 		h_errno = TRY_AGAIN;
@@ -617,8 +617,8 @@ int getaddrinfo(const char *node, const char *service, const struct addrinfo *hi
 		port = (int) strtol(service, &end, 10);
 		if (*end) return EAI_SERVICE;
 	}
-	if (!node) addr.s_addr = htonl((hints && (hints->ai_flags & AI_PASSIVE)) ? INADDR_ANY : INADDR_LOOPBACK), canon = "phpsim";
-	else if (!phpsim_resolve(node, &addr, &canon)) {
+	if (!node) addr.s_addr = htonl((hints && (hints->ai_flags & AI_PASSIVE)) ? INADDR_ANY : INADDR_LOOPBACK), canon = "simphp";
+	else if (!simphp_resolve(node, &addr, &canon)) {
 		errno = EAGAIN;
 		return (hints && (hints->ai_flags & AI_NUMERICHOST)) ? EAI_NONAME : EAI_AGAIN;
 	}
@@ -720,7 +720,7 @@ static long double q_exp(long double t)
 	return ldexpl(sum, (int) kf);
 }
 
-double phpsim_x87_explog(double x, double y)
+double simphp_x87_explog(double x, double y)
 {
 	long double l, t;
 
@@ -733,16 +733,16 @@ double phpsim_x87_explog(double x, double y)
 /* One x87 operation, then the store to a double (two roundings). Quad holds
  * the exact product of two doubles and (for exponents within 60 bits) the
  * exact sum, so the 64-bit rounding is the FPU's. */
-double phpsim_x87_add(double a, double b) { return (double) x87((long double) a + (long double) b); }
-double phpsim_x87_sub(double a, double b) { return (double) x87((long double) a - (long double) b); }
-double phpsim_x87_mul(double a, double b) { return (double) x87((long double) a * (long double) b); }
-double phpsim_x87_div(double a, double b)
+double simphp_x87_add(double a, double b) { return (double) x87((long double) a + (long double) b); }
+double simphp_x87_sub(double a, double b) { return (double) x87((long double) a - (long double) b); }
+double simphp_x87_mul(double a, double b) { return (double) x87((long double) a * (long double) b); }
+double simphp_x87_div(double a, double b)
 {
 	if (b == 0) return a / b;
 	return (double) x87((long double) a / (long double) b);
 }
 /* (a / b) * c as one x87 expression: the quotient is not stored in between */
-double phpsim_x87_divmul(double a, double b, double c)
+double simphp_x87_divmul(double a, double b, double c)
 {
 	return (double) x87(x87((long double) a / (long double) b) * (long double) c);
 }
@@ -752,11 +752,11 @@ double phpsim_x87_divmul(double a, double b, double c)
  * field widths, E/O modifiers, %k %l %P %s %G %g %V ..., and unknown
  * conversions copied through literally (musl rejects the whole format).
  */
-static const char *const phpsim_wday_full[] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
-static const char *const phpsim_mon_full[] = { "January", "February", "March", "April", "May", "June", "July",
+static const char *const simphp_wday_full[] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+static const char *const simphp_mon_full[] = { "January", "February", "March", "April", "May", "June", "July",
 	"August", "September", "October", "November", "December" };
 
-static int phpsim_iso_week(const struct tm *tm, int *iso_year)
+static int simphp_iso_week(const struct tm *tm, int *iso_year)
 {
 	/* ISO 8601 week number and year */
 	int year = tm->tm_year + 1900, yday = tm->tm_yday, wday = (tm->tm_wday + 6) % 7; /* Mon=0 */
@@ -775,7 +775,7 @@ static int phpsim_iso_week(const struct tm *tm, int *iso_year)
 	return week;
 }
 
-size_t phpsim_strftime(char *restrict s, size_t max, const char *restrict fmt, const struct tm *restrict tm)
+size_t simphp_strftime(char *restrict s, size_t max, const char *restrict fmt, const struct tm *restrict tm)
 {
 	size_t n = 0;
 	char buf[64];
@@ -793,18 +793,18 @@ size_t phpsim_strftime(char *restrict s, size_t max, const char *restrict fmt, c
 		if (*fmt >= '1' && *fmt <= '9') { width = 0; while (*fmt >= '0' && *fmt <= '9') width = width * 10 + (*fmt++ - '0'); }
 		if (*fmt == 'E' || *fmt == 'O') fmt++;
 		switch (*fmt) {
-			case 'a': str = phpsim_wday_full[tm->tm_wday % 7]; num = 3; break;
-			case 'A': str = phpsim_wday_full[tm->tm_wday % 7]; break;
-			case 'b': case 'h': str = phpsim_mon_full[tm->tm_mon % 12]; num = 3; break;
-			case 'B': str = phpsim_mon_full[tm->tm_mon % 12]; break;
-			case 'c': phpsim_strftime(buf, sizeof buf, "%a %b %e %H:%M:%S %Y", tm); str = buf; break;
+			case 'a': str = simphp_wday_full[tm->tm_wday % 7]; num = 3; break;
+			case 'A': str = simphp_wday_full[tm->tm_wday % 7]; break;
+			case 'b': case 'h': str = simphp_mon_full[tm->tm_mon % 12]; num = 3; break;
+			case 'B': str = simphp_mon_full[tm->tm_mon % 12]; break;
+			case 'c': simphp_strftime(buf, sizeof buf, "%a %b %e %H:%M:%S %Y", tm); str = buf; break;
 			case 'C': numeric = 1; val = (tm->tm_year + 1900) / 100; break;
 			case 'd': numeric = 1; val = tm->tm_mday; break;
-			case 'D': case 'x': phpsim_strftime(buf, sizeof buf, "%m/%d/%y", tm); str = buf; break;
+			case 'D': case 'x': simphp_strftime(buf, sizeof buf, "%m/%d/%y", tm); str = buf; break;
 			case 'e': numeric = 1; val = tm->tm_mday; defpad = '_'; break;
-			case 'F': phpsim_strftime(buf, sizeof buf, "%Y-%m-%d", tm); str = buf; break;
-			case 'G': { int y; phpsim_iso_week(tm, &y); numeric = 1; val = y; digits = 1; break; }
-			case 'g': { int y; phpsim_iso_week(tm, &y); numeric = 1; val = ((y % 100) + 100) % 100; break; }
+			case 'F': simphp_strftime(buf, sizeof buf, "%Y-%m-%d", tm); str = buf; break;
+			case 'G': { int y; simphp_iso_week(tm, &y); numeric = 1; val = y; digits = 1; break; }
+			case 'g': { int y; simphp_iso_week(tm, &y); numeric = 1; val = ((y % 100) + 100) % 100; break; }
 			case 'H': numeric = 1; val = tm->tm_hour; break;
 			case 'I': numeric = 1; val = tm->tm_hour % 12 ? tm->tm_hour % 12 : 12; break;
 			case 'j': numeric = 1; val = tm->tm_yday + 1; digits = 3; break;
@@ -815,15 +815,15 @@ size_t phpsim_strftime(char *restrict s, size_t max, const char *restrict fmt, c
 			case 'n': str = "\n"; break;
 			case 'p': str = tm->tm_hour < 12 ? "AM" : "PM"; if (swapcase) { str = tm->tm_hour < 12 ? "am" : "pm"; swapcase = 0; } break;
 			case 'P': str = tm->tm_hour < 12 ? "am" : "pm"; break;
-			case 'r': phpsim_strftime(buf, sizeof buf, "%I:%M:%S %p", tm); str = buf; break;
-			case 'R': phpsim_strftime(buf, sizeof buf, "%H:%M", tm); str = buf; break;
+			case 'r': simphp_strftime(buf, sizeof buf, "%I:%M:%S %p", tm); str = buf; break;
+			case 'R': simphp_strftime(buf, sizeof buf, "%H:%M", tm); str = buf; break;
 			case 's': { struct tm t = *tm; numeric = 1; val = (long long) mktime(&t); digits = 1; break; }
 			case 'S': numeric = 1; val = tm->tm_sec; break;
 			case 't': str = "\t"; break;
-			case 'T': case 'X': phpsim_strftime(buf, sizeof buf, "%H:%M:%S", tm); str = buf; break;
+			case 'T': case 'X': simphp_strftime(buf, sizeof buf, "%H:%M:%S", tm); str = buf; break;
 			case 'u': numeric = 1; val = tm->tm_wday ? tm->tm_wday : 7; digits = 1; break;
 			case 'U': numeric = 1; val = (tm->tm_yday - tm->tm_wday + 7) / 7; break;
-			case 'V': numeric = 1; val = phpsim_iso_week(tm, NULL); break;
+			case 'V': numeric = 1; val = simphp_iso_week(tm, NULL); break;
 			case 'w': numeric = 1; val = tm->tm_wday; digits = 1; break;
 			case 'W': numeric = 1; val = (tm->tm_yday - (tm->tm_wday - 1 + 7) % 7 + 7) / 7; break;
 			case 'y': numeric = 1; val = ((tm->tm_year % 100) + 100) % 100; break;
@@ -876,9 +876,9 @@ size_t phpsim_strftime(char *restrict s, size_t max, const char *restrict fmt, c
  * table bytes, captured from an i386 box, for both integers and string bytes.
  */
 #include <ctype.h>
-#include "phpsim_ctype_table.c"
+#include "simphp_ctype_table.c"
 
-int phpsim_glibc_ctype(int (*iswhat)(int), long c)
+int simphp_glibc_ctype(int (*iswhat)(int), long c)
 {
 	unsigned short mask;
 
@@ -895,34 +895,34 @@ int phpsim_glibc_ctype(int (*iswhat)(int), long c)
 	else if (iswhat == isalnum) mask = 0x8;
 	else return iswhat((int) c);
 	if (c < -128 || c >= 2200) return 0;
-	return phpsim_glibc_ctype_b[c + 128] & mask;
+	return simphp_glibc_ctype_b[c + 128] & mask;
 }
 
 /* I/O on sockets connected to a simulated local service; anything else is a
  * plain file descriptor. */
-extern int phpsim_service_read(int fd, void *buf, int size);
-extern int phpsim_service_write(int fd, const void *buf, int size);
-extern void phpsim_service_close(int fd);
+extern int simphp_service_read(int fd, void *buf, int size);
+extern int simphp_service_write(int fd, const void *buf, int size);
+extern void simphp_service_close(int fd);
 
-int phpsim_sock_read(int fd, void *buf, int size)
+int simphp_sock_read(int fd, void *buf, int size)
 {
-	if (fd >= 0 && fd < PHPSIM_MAXFD && (phpsim_sockfd[fd] & PHPSIM_SOCK_SERVICE))
-		return phpsim_service_read(fd, buf, size);
+	if (fd >= 0 && fd < SIMPHP_MAXFD && (simphp_sockfd[fd] & SIMPHP_SOCK_SERVICE))
+		return simphp_service_read(fd, buf, size);
 	return (int) read(fd, buf, size);
 }
 
-int phpsim_sock_write(int fd, const void *buf, int size)
+int simphp_sock_write(int fd, const void *buf, int size)
 {
-	if (fd >= 0 && fd < PHPSIM_MAXFD && (phpsim_sockfd[fd] & PHPSIM_SOCK_SERVICE))
-		return phpsim_service_write(fd, buf, size);
+	if (fd >= 0 && fd < SIMPHP_MAXFD && (simphp_sockfd[fd] & SIMPHP_SOCK_SERVICE))
+		return simphp_service_write(fd, buf, size);
 	return (int) write(fd, buf, size);
 }
 
-int phpsim_sock_close(int fd)
+int simphp_sock_close(int fd)
 {
-	if (fd >= 0 && fd < PHPSIM_MAXFD) {
-		if (phpsim_sockfd[fd] & PHPSIM_SOCK_SERVICE) phpsim_service_close(fd);
-		phpsim_sockfd[fd] = 0;
+	if (fd >= 0 && fd < SIMPHP_MAXFD) {
+		if (simphp_sockfd[fd] & SIMPHP_SOCK_SERVICE) simphp_service_close(fd);
+		simphp_sockfd[fd] = 0;
 	}
 	return close(fd);
 }

@@ -56,10 +56,10 @@ build_php() {
   cat > "$fakebin/uname" <<'EOF'
 #!/bin/sh
 case "$1" in
-  -a) echo "Linux phpsim 2.4.16 #1 Fri Dec 21 12:00:00 PST 2001 i686 unknown";;
+  -a) echo "Linux simphp 2.4.16 #1 Fri Dec 21 12:00:00 PST 2001 i686 unknown";;
   -m) echo "i686";;
   -r) echo "2.4.16";;
-  -n) echo "phpsim";;
+  -n) echo "simphp";;
   -s|"") echo "Linux";;
   *) echo "Linux";;
 esac
@@ -71,7 +71,7 @@ EOF
   # under emscripten: musl implements isnan/isinf as macros (link tests fail),
   # glibc of the era had no strlcpy/strlcat (PHP uses its bundled copies), the
   # fflush-between-read-and-write test can't run, and res_search is stubbed
-  # (see src/phpsim_sys.c) so checkdnsrr()/getmxrr() exist as on Linux.
+  # (see src/simphp_sys.c) so checkdnsrr()/getmxrr() exist as on Linux.
   export ac_cv_func_isnan=yes ac_cv_func_isinf=yes \
          ac_cv_func_strlcpy=no ac_cv_func_strlcat=no \
          ac_cv_flush_io=no ac_cv_func_res_search=yes \
@@ -87,12 +87,12 @@ EOF
     > "$ROOT/build/configure.log" 2>&1 || { tail -40 "$ROOT/build/configure.log"; exit 1; }
 
   # The in-tree link of the `php` target fails (it lacks our JS library and
-  # phpsim_sys.o); we only need the objects, and link ourselves in link_php.
-  # phpsim_force.h is force-included into every PHP source at make time only
+  # simphp_sys.o); we only need the objects, and link ourselves in link_php.
+  # simphp_force.h is force-included into every PHP source at make time only
   # (so configure's link tests are unaffected): errno display in Linux
   # numbering, and a few libc functions redirected to glibc-compatible ones.
   emmake make -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)" \
-    CPPFLAGS='-I$(top_builddir)/TSRM -include '"$ROOT/src/phpsim_force.h" \
+    CPPFLAGS='-I$(top_builddir)/TSRM -include '"$ROOT/src/simphp_force.h" \
     > "$ROOT/build/make.log" 2>&1 || true
   if [ ! -f .libs/libphp4.a ] || [ ! -f stub.o ]; then
     grep -E "error" "$ROOT/build/make.log" | head -40; exit 1
@@ -102,9 +102,9 @@ EOF
 link_php() {
   cd "$SRC"
   mkdir -p "$OUT"
-  emcc $CFLAGS_COMMON -I"$ROOT/src" -c "$ROOT/src/phpsim_sys.c" -o "$ROOT/build/phpsim_sys.o"
+  emcc $CFLAGS_COMMON -I"$ROOT/src" -c "$ROOT/src/simphp_sys.c" -o "$ROOT/build/simphp_sys.o"
   local common=(
-    $CFLAGS_COMMON stub.o "$ROOT/build/phpsim_sys.o" .libs/libphp4.a -lm
+    $CFLAGS_COMMON stub.o "$ROOT/build/simphp_sys.o" .libs/libphp4.a -lm
     -sMODULARIZE=1 -sEXPORT_NAME=createPHP
     -sINVOKE_RUN=0 -sEXIT_RUNTIME=1
     -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=32MB -sMAXIMUM_MEMORY=512MB
@@ -112,8 +112,8 @@ link_php() {
     -sFORCE_FILESYSTEM=1
     -sEXPORTED_RUNTIME_METHODS=callMain,FS,ENV
     -sENVIRONMENT=web,worker,node
-    --js-library "$ROOT/src/phpsim_lib.js"
-    --js-library "$ROOT/src/phpsim_shell.js"
+    --js-library "$ROOT/src/simphp_lib.js"
+    --js-library "$ROOT/src/simphp_shell.js"
   )
   # Plain build: every browser, and Node (tests, bin/php411.js).
   emcc "${common[@]}" -o "$OUT/php.js"

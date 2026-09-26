@@ -1,5 +1,5 @@
 <?php
-$d = "/tmp/phpsim";
+$d = "/tmp/simphp";
 @mkdir($d, 0755);
 $f = "$d/test.txt";
 $fp = fopen($f, "w"); fwrite($fp, "line1\nline2\r\nline3"); fputs($fp, "\nline4\n"); fclose($fp);
@@ -18,7 +18,7 @@ $dir = dir($d); echo get_class($dir), " ", $dir->path, "\n"; $dir->close();
 unlink("$d/moved.txt"); echo file_exists("$d/moved.txt") ? "still" : "gone", "\n";
 echo basename("/a/b/c.txt"), " ", basename("/a/b/c.txt", ".txt"), " ", dirname("/a/b/c.txt"), " ", dirname("c.txt"), " ", dirname("/c"), "\n";
 print_r(pathinfo("/www/htdocs/index.inc.php"));
-echo realpath("/tmp/phpsim/../phpsim/./test.txt"), "\n";
+echo realpath("/tmp/simphp/../simphp/./test.txt"), "\n";
 $fp = fopen("$d/csv.csv", "w"); fwrite($fp, "a,b,\"c,d\"\n1,\"2\"\"x\",3\n"); fclose($fp);
 $fp = fopen("$d/csv.csv", "r"); while ($row = fgetcsv($fp, 1000)) print_r($row); fclose($fp);
 $tmp = tmpfile(); fwrite($tmp, "tmpdata"); fseek($tmp, 0); echo fread($tmp, 100), "\n"; fclose($tmp);

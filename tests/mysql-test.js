@@ -6,7 +6,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const PHPSim = require('../web/phpsim-core.js');
+const SimPHP = require('../web/simphp-core.js');
 const createPHP = require('../web/php.js');
 const initSqlJs = require('../web/vendor/sqljs/sql-wasm.js');
 
@@ -18,7 +18,7 @@ const update = process.argv.includes('--update');
   const wasmModule = await WebAssembly.compile(fs.readFileSync(path.join(__dirname, '../web/php.wasm')));
   let pass = 0, fail = 0;
   for (const f of fs.readdirSync(DIR).filter((n) => n.endsWith('.php')).sort()) {
-    const sim = await PHPSim.create({ createPHP, wasmModule, SQL });
+    const sim = await SimPHP.create({ createPHP, wasmModule, SQL });
     const r = await sim.run({ args: ['-q', '/var/www/' + f], env: { TZ: 'UTC' }, cwd: '/var/www',
       files: { ['/var/www/' + f]: fs.readFileSync(path.join(DIR, f)) }, collectFiles: false });
     const got = Buffer.from(r.stdout).toString('latin1');

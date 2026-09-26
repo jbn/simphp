@@ -5,7 +5,7 @@
  
  #if !defined(HAVE_TM_ZONE) && !defined(_TIMEZONE) && !defined(HAVE_DECLARED_TIMEZONE)
 -extern time_t timezone;
-+extern long timezone; /* phpsim: glibc declares long; time_t is 64-bit on wasm32 */
++extern long timezone; /* simphp: glibc declares long; time_t is 64-bit on wasm32 */
  extern int daylight;
  #endif
  

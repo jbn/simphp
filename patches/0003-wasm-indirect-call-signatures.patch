@@ -7,7 +7,7 @@
 +
  
 +#ifdef __EMSCRIPTEN__
-+/* phpsim: wasm traps on indirect calls whose signature differs (int vs void
++/* simphp: wasm traps on indirect calls whose signature differs (int vs void
 + * return); x86 tolerated this cast. */
 +static void php_mergesort_void(void *base, size_t nmemb, size_t size, int (*cmp)(const void *, const void *))
 +{

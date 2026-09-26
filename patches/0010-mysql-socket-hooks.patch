@@ -6,13 +6,13 @@
  
 +
 +#ifdef __EMSCRIPTEN__
-+/* phpsim: connections to the simulated mysqld are served in-process */
-+extern int phpsim_sock_read(int fd, void *buf, int size);
-+extern int phpsim_sock_write(int fd, const void *buf, int size);
-+extern int phpsim_sock_close(int fd);
-+#define VIO_READ(fd, buf, size) phpsim_sock_read((fd), (buf), (size))
-+#define VIO_WRITE(fd, buf, size) phpsim_sock_write((fd), (buf), (size))
-+#define VIO_CLOSE(fd) phpsim_sock_close(fd)
++/* simphp: connections to the simulated mysqld are served in-process */
++extern int simphp_sock_read(int fd, void *buf, int size);
++extern int simphp_sock_write(int fd, const void *buf, int size);
++extern int simphp_sock_close(int fd);
++#define VIO_READ(fd, buf, size) simphp_sock_read((fd), (buf), (size))
++#define VIO_WRITE(fd, buf, size) simphp_sock_write((fd), (buf), (size))
++#define VIO_CLOSE(fd) simphp_sock_close(fd)
 +#else
 +#define VIO_READ(fd, buf, size) read((fd), (buf), (size))
 +#define VIO_WRITE(fd, buf, size) write((fd), (buf), (size))

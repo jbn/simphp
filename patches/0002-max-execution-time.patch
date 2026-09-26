@@ -7,11 +7,11 @@
 +#endif
 +
 +#ifdef __EMSCRIPTEN__
-+/* phpsim: wasm has no signals, so ITIMER_PROF/SIGPROF cannot interrupt the
++/* simphp: wasm has no signals, so ITIMER_PROF/SIGPROF cannot interrupt the
 + * engine. Instead the executor polls a CPU-time deadline (see zend_execute.c),
 + * the same approach Zend uses on Win32 with EG(timed_out). */
-+extern double phpsim_cpu_ms(void);
-+ZEND_API double phpsim_timeout_deadline = 0;
++extern double simphp_cpu_ms(void);
++ZEND_API double simphp_timeout_deadline = 0;
  #endif
  
  /* This one doesn't exists on QNX */
@@ -20,7 +20,7 @@
  	}
  	PostThreadMessage(timeout_thread_id, WM_REGISTER_ZEND_TIMEOUT, (WPARAM) GetCurrentThreadId(), (LPARAM) seconds);
 +#elif defined(__EMSCRIPTEN__)
-+	phpsim_timeout_deadline = seconds > 0 ? phpsim_cpu_ms() + seconds * 1000.0 : 0;
++	simphp_timeout_deadline = seconds > 0 ? simphp_cpu_ms() + seconds * 1000.0 : 0;
  #else
  #	ifdef HAVE_SETITIMER
  	{
@@ -29,7 +29,7 @@
  #ifdef ZEND_WIN32
  	PostThreadMessage(timeout_thread_id, WM_UNREGISTER_ZEND_TIMEOUT, (WPARAM) GetCurrentThreadId(), (LPARAM) 0);
 +#elif defined(__EMSCRIPTEN__)
-+	phpsim_timeout_deadline = 0;
++	simphp_timeout_deadline = 0;
  #else
  #	ifdef HAVE_SETITIMER
  	{
@@ -41,13 +41,13 @@
  #endif
 +#ifdef __EMSCRIPTEN__
 +		{
-+			extern double phpsim_timeout_deadline;
-+			extern double phpsim_cpu_ms(void);
-+			static unsigned int phpsim_tick;
++			extern double simphp_timeout_deadline;
++			extern double simphp_cpu_ms(void);
++			static unsigned int simphp_tick;
  
-+			if (phpsim_timeout_deadline && !(++phpsim_tick & 0xFFF)
-+				&& phpsim_cpu_ms() >= phpsim_timeout_deadline) {
-+				phpsim_timeout_deadline = 0;
++			if (simphp_timeout_deadline && !(++simphp_tick & 0xFFF)
++				&& simphp_cpu_ms() >= simphp_timeout_deadline) {
++				simphp_timeout_deadline = 0;
 +				zend_timeout(0);
 +			}
 +		}

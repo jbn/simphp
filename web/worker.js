@@ -3,7 +3,7 @@
  * process (a new wasm instance of the pre-compiled module), exactly like a
  * CGI web server forks php for every hit.
  */
-/* global createPHP, PHPSim, MysqlServer, initSqlJs */
+/* global createPHP, SimPHP, MysqlServer, initSqlJs */
 
 // With JS Promise Integration the engine runs on its own wasm stack, which is
 // several times larger than a worker's native stack -- PHP 4's executor
@@ -11,7 +11,7 @@
 // recursion depth. Fall back to the plain build elsewhere.
 const USE_JSPI = typeof WebAssembly.Suspending === 'function' && typeof WebAssembly.promising === 'function';
 const BUILD = USE_JSPI ? 'php-jspi' : 'php';
-importScripts(BUILD + '.js', 'phpsim-core.js', 'mysqld.js', 'vendor/sqljs/sql-wasm.js');
+importScripts(BUILD + '.js', 'simphp-core.js', 'mysqld.js', 'vendor/sqljs/sql-wasm.js');
 
 // sql.js (SQLite) backs the emulated MySQL server; it is only loaded once a
 // request runs with the server enabled.
@@ -34,7 +34,7 @@ function getSim() {
       } else {
         wasmModule = await WebAssembly.compile(await resp.arrayBuffer());
       }
-      return PHPSim.create({ createPHP, wasmModule });
+      return SimPHP.create({ createPHP, wasmModule });
     })();
   }
   return simPromise;

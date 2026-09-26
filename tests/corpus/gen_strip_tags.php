@@ -32,18 +32,18 @@ foreach ($docs as $d) {
     echo "\n";
 }
 // fgetss-like via temp file
-@mkdir("/tmp/phpsim", 0777);
-$fp = fopen("/tmp/phpsim/st.html", "w");
+@mkdir("/tmp/simphp", 0777);
+$fp = fopen("/tmp/simphp/st.html", "w");
 if (!$fp) die("no scratch dir\n");
 fwrite($fp, "<html>\n<b>line1</b>\n<i>line2</i> <a href='z'>q</a>\n<p>split\ntag</p>\n");
 fclose($fp);
-$fp = fopen("/tmp/phpsim/st.html", "r");
+$fp = fopen("/tmp/simphp/st.html", "r");
 while (!feof($fp)) { $l = fgetss($fp, 100); echo "[", str_replace("\n", "\\n", $l), "]"; }
 echo "\n";
 fclose($fp);
-$fp = fopen("/tmp/phpsim/st.html", "r");
+$fp = fopen("/tmp/simphp/st.html", "r");
 while (!feof($fp)) { $l = fgetss($fp, 100, "<b>"); echo "[", str_replace("\n", "\\n", $l), "]"; }
 echo "\n";
 fclose($fp);
-unlink("/tmp/phpsim/st.html");
+unlink("/tmp/simphp/st.html");
 ?>

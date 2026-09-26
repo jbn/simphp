@@ -5,10 +5,10 @@
  /* {{{ ctype
   */
 +#ifdef __EMSCRIPTEN__
-+/* phpsim: answer from glibc's ctype table, including what isdigit() & co.
-+ * read for out-of-range integers on Linux (see phpsim_glibc_ctype) */
-+extern int phpsim_glibc_ctype(int (*iswhat)(int), long c);
-+#define CTYPE_TEST(f, c) phpsim_glibc_ctype((f), (c))
++/* simphp: answer from glibc's ctype table, including what isdigit() & co.
++ * read for out-of-range integers on Linux (see simphp_glibc_ctype) */
++extern int simphp_glibc_ctype(int (*iswhat)(int), long c);
++#define CTYPE_TEST(f, c) simphp_glibc_ctype((f), (c))
 +#else
 +#define CTYPE_TEST(f, c) (f)(c)
 +#endif

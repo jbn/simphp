@@ -142,11 +142,11 @@ AGAINST`, for example) may not behave exactly like MySQL.
 ```
 build.sh               fetch sources, configure, make, link (plain + JSPI builds)
 patches/               the source patches (see above)
-src/phpsim_sys.c       libc replacements: qsort, random, strftime, popen, sockets, x87 math, ...
-src/phpsim_lib.js      Emscripten JS library: clock, time zones, CPU time, socket services
-src/phpsim_shell.js    the emulated /bin/sh (+ sendmail)
-src/phpsim_force.h     force-included into the PHP build (errno/strftime redirections)
-web/                   the app: index.html, app.js, worker.js, phpsim-core.js, mysqld.js, php*.wasm
+src/simphp_sys.c       libc replacements: qsort, random, strftime, popen, sockets, x87 math, ...
+src/simphp_lib.js      Emscripten JS library: clock, time zones, CPU time, socket services
+src/simphp_shell.js    the emulated /bin/sh (+ sendmail)
+src/simphp_force.h     force-included into the PHP build (errno/strftime redirections)
+web/                   the app: index.html, app.js, worker.js, simphp-core.js, mysqld.js, php*.wasm
 bin/php411.js          PHP 4.1.1 in your terminal: node bin/php411.js -q script.php
 bin/serve.js           static server for web/
 tests/                 phpt runner, differential tests (+ corpus), MySQL snapshots

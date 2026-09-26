@@ -5,7 +5,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const PHPSim = require('../web/phpsim-core.js');
+const SimPHP = require('../web/simphp-core.js');
 const createPHP = require('../web/php.js');
 
 function mountDir(dir, prefix, files, depth = 0) {
@@ -32,17 +32,17 @@ function mountDir(dir, prefix, files, depth = 0) {
   }
   let stdin = '';
   if (!process.stdin.isTTY) { try { stdin = fs.readFileSync(0); } catch (e) {} }
-  // The emulated MySQL server (set PHPSIM_MYSQL=0 to run without one)
+  // The emulated MySQL server (set SIMPHP_MYSQL=0 to run without one)
   let SQL = null;
-  if (process.env.PHPSIM_MYSQL !== '0') {
+  if (process.env.SIMPHP_MYSQL !== '0') {
     const initSqlJs = require('../web/vendor/sqljs/sql-wasm.js');
     SQL = await initSqlJs({ locateFile: (f) => path.join(__dirname, '../web/vendor/sqljs', f) });
   }
-  const sim = await PHPSim.create({ createPHP, SQL, wasmBinary: fs.readFileSync(path.join(__dirname, '../web/php.wasm')) });
-  const r = await sim.run({ args, files, cwd, stdin, env: { PATH: '/usr/local/bin:/usr/bin:/bin', ...(process.env.PHPSIM_ENV ? JSON.parse(process.env.PHPSIM_ENV) : {}) }, collectFiles: false });
+  const sim = await SimPHP.create({ createPHP, SQL, wasmBinary: fs.readFileSync(path.join(__dirname, '../web/php.wasm')) });
+  const r = await sim.run({ args, files, cwd, stdin, env: { PATH: '/usr/local/bin:/usr/bin:/bin', ...(process.env.SIMPHP_ENV ? JSON.parse(process.env.SIMPHP_ENV) : {}) }, collectFiles: false });
   process.stdout.write(r.stdout);
   if (r.stderr.length) process.stderr.write(r.stderr);
   if (r.crash) process.stderr.write('Segmentation fault\n');
-  if (r.aborted) process.stderr.write('[phpsim] ' + r.aborted + '\n');
+  if (r.aborted) process.stderr.write('[simphp] ' + r.aborted + '\n');
   process.exitCode = r.exitCode || 0;
 })();

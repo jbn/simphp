@@ -1,7 +1,7 @@
 <?php
 error_reporting(E_ALL);
-@mkdir("/tmp/phpsim", 0777);
-$f = "/tmp/phpsim/test.csv";
+@mkdir("/tmp/simphp", 0777);
+$f = "/tmp/simphp/test.csv";
 $csv = "a,b,c\n"
      . "1,\"two\",3\n"
      . "\"quoted, comma\",\"with \"\"escaped\"\" quotes\",plain\n"

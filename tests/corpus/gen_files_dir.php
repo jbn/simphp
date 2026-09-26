@@ -1,7 +1,7 @@
 <?php
 error_reporting(E_ALL);
-@mkdir("/tmp/phpsim", 0777);
-$d = "/tmp/phpsim/dirtest";
+@mkdir("/tmp/simphp", 0777);
+$d = "/tmp/simphp/dirtest";
 var_dump(mkdir($d, 0755));
 var_dump(@mkdir($d, 0755));
 var_dump(@mkdir("$d/a/b/c", 0755));
@@ -20,8 +20,8 @@ $dir->rewind(); $dir->close();
 var_dump(@opendir("$d/nothere"));
 echo function_exists('glob') ? "has glob\n" : "no glob\n";
 echo function_exists('scandir') ? "has scandir\n" : "no scandir\n";
-foreach (array($d, "$d/a.txt", "$d/sub", "$d/nothere", "/tmp/phpsim", "") as $p) {
-    echo "[", str_replace("/tmp/phpsim", "T", $p), "] exists=", (int)file_exists($p), " file=", (int)is_file($p), " dir=", (int)is_dir($p), " link=", (int)is_link($p), " r=", (int)is_readable($p), " w=", (int)is_writable($p), " x=", (int)is_executable($p), "\n";
+foreach (array($d, "$d/a.txt", "$d/sub", "$d/nothere", "/tmp/simphp", "") as $p) {
+    echo "[", str_replace("/tmp/simphp", "T", $p), "] exists=", (int)file_exists($p), " file=", (int)is_file($p), " dir=", (int)is_dir($p), " link=", (int)is_link($p), " r=", (int)is_readable($p), " w=", (int)is_writable($p), " x=", (int)is_executable($p), "\n";
 }
 clearstatcache();
 echo filesize("$d/a.txt"), " ", filetype("$d/a.txt"), " ", filetype("$d/sub"), " ", var_s(@filesize("$d/none")), " ", var_s(@filetype("$d/none")), "\n";
@@ -40,7 +40,7 @@ var_dump(unlink("$d/renamed.txt"), @unlink("$d/renamed.txt"), @rmdir("$d/sub"), 
 $old = umask(022); printf("umask=%o\n", umask()); umask($old);
 echo realpath("$d/sub/../a.txt") === "$d/a.txt" ? "realpath ok\n" : "realpath differs\n";
 var_dump(realpath("$d/nonexist/../x"));
-echo str_replace("/tmp/phpsim", "T", realpath("/tmp/phpsim/./dirtest//sub/")), "\n";
+echo str_replace("/tmp/simphp", "T", realpath("/tmp/simphp/./dirtest//sub/")), "\n";
 $fp = fopen("$d/big", "w"); for ($i = 0; $i < 1000; $i++) fwrite($fp, sprintf("%04d\n", $i)); fclose($fp);
 clearstatcache(); echo filesize("$d/big"), " ", count(file("$d/big")), " ", md5(implode("", file("$d/big"))), "\n";
 // cleanup

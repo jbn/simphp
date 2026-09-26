@@ -5,18 +5,18 @@
  PHPAPI PHP_FUNCTION(warn_not_available);
  
 +#ifdef __EMSCRIPTEN__
-+/* phpsim: emscripten's libc knows no users or groups; resolve them from the
++/* simphp: emscripten's libc knows no users or groups; resolve them from the
 + * simulated /etc/passwd and /etc/group the way glibc's files backend does. */
 +#include <pwd.h>
 +#include <grp.h>
-+struct passwd *phpsim_getpwuid(uid_t uid);
-+struct passwd *phpsim_getpwnam(const char *name);
-+struct group *phpsim_getgrgid(gid_t gid);
-+struct group *phpsim_getgrnam(const char *name);
-+#define getpwuid phpsim_getpwuid
-+#define getpwnam phpsim_getpwnam
-+#define getgrgid phpsim_getgrgid
-+#define getgrnam phpsim_getgrnam
++struct passwd *simphp_getpwuid(uid_t uid);
++struct passwd *simphp_getpwnam(const char *name);
++struct group *simphp_getgrgid(gid_t gid);
++struct group *simphp_getgrnam(const char *name);
++#define getpwuid simphp_getpwuid
++#define getpwnam simphp_getpwnam
++#define getgrgid simphp_getgrgid
++#define getgrnam simphp_getgrnam
  #endif
  
 +#endif

@@ -5,20 +5,20 @@
  }
  
 +#ifdef __EMSCRIPTEN__
-+/* phpsim: for NaN/INF, 4.1.1 copies `precision` bytes out of the 4-byte
++/* simphp: for NaN/INF, 4.1.1 copies `precision` bytes out of the 4-byte
 + * literals "NaN"/"INF", reading past them into whatever the i386 linker put
 + * next ("INF", then the "%s(): too few arguments" message, then a jump table),
 + * so printf("%f", NAN) prints "NaN\0IN". Keep those bytes in one array: the
 + * output matches the original and the over-read stays in bounds. */
-+static const char phpsim_nan_inf[] = "NaN\0INF\0%s(): too few arguments\0\0\0\0"
++static const char simphp_nan_inf[] = "NaN\0INF\0%s(): too few arguments\0\0\0\0"
 +	"\370\316\360\377\305\307\360\377\305\307\360\377\305\307\360\377\305\307\360\377"
 +	"\305\307\360\377\305\307\360\377\305\307\360\377\305\307\360\377\305\307\360\377"
 +	"\305\307\360\377\305\307\360\377\305\307\360\377";
-+#define PHPSIM_NAN_STR ((char *) phpsim_nan_inf)
-+#define PHPSIM_INF_STR ((char *) phpsim_nan_inf + 4)
++#define SIMPHP_NAN_STR ((char *) simphp_nan_inf)
++#define SIMPHP_INF_STR ((char *) simphp_nan_inf + 4)
 +#else
-+#define PHPSIM_NAN_STR "NaN"
-+#define PHPSIM_INF_STR "INF"
++#define SIMPHP_NAN_STR "NaN"
++#define SIMPHP_INF_STR "INF"
 +#endif
 +
  inline static void
@@ -29,7 +29,7 @@
  	if (zend_isnan(number)) {
  		sign = (number<0);
 -		php_sprintf_appendstring(buffer, pos, size, "NaN", 3, 0, padding,
-+		php_sprintf_appendstring(buffer, pos, size, PHPSIM_NAN_STR, 3, 0, padding,
++		php_sprintf_appendstring(buffer, pos, size, SIMPHP_NAN_STR, 3, 0, padding,
  								 alignment, precision, sign, 0);
  		return;
  	}
@@ -37,7 +37,7 @@
  	if (zend_isinf(number)) {
  		sign = (number<0);
 -		php_sprintf_appendstring(buffer, pos, size, "INF", 3, 0, padding,
-+		php_sprintf_appendstring(buffer, pos, size, PHPSIM_INF_STR, 3, 0, padding,
++		php_sprintf_appendstring(buffer, pos, size, SIMPHP_INF_STR, 3, 0, padding,
  								 alignment, precision, sign, 0);
  		return;
  	}

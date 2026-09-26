@@ -1,10 +1,10 @@
 /*
- * phpsim-core: runs the PHP 4.1.1 CGI binary (compiled to wasm) the way a
+ * simphp-core: runs the PHP 4.1.1 CGI binary (compiled to wasm) the way a
  * web server would -- one fresh process per request.
  *
  * Works in a Web Worker (importScripts) and in Node (require).
  *
- *   const sim = await PHPSim.create({ createPHP, wasmBinary });
+ *   const sim = await SimPHP.create({ createPHP, wasmBinary });
  *   const r = await sim.run({ files, script, args, env, stdin, iniFile });
  *
  * `files` maps absolute paths to string|Uint8Array and is written into a
@@ -31,8 +31,8 @@
     '/etc/group': 'root:x:0:root\nbin:x:1:root,bin,daemon\ndaemon:x:2:root,bin,daemon\nmail:x:12:mail\n' +
       'nobody:x:99:\nusers:x:100:\napache:x:48:\nmysql:x:27:\n',
     '/etc/hosts': '# Do not remove the following line, or various programs\n' +
-      '# that require network functionality will fail.\n127.0.0.1\t\tphpsim localhost.localdomain localhost\n',
-    '/etc/hostname': 'phpsim\n',
+      '# that require network functionality will fail.\n127.0.0.1\t\tsimphp localhost.localdomain localhost\n',
+    '/etc/hostname': 'simphp\n',
     '/etc/resolv.conf': 'search localdomain\nnameserver 127.0.0.1\n',
     '/etc/issue': 'Red Hat Linux release 7.2 (Enigma)\nKernel \\r on an \\m\n\n',
     '/etc/redhat-release': 'Red Hat Linux release 7.2 (Enigma)\n',
@@ -68,12 +68,12 @@
     }
   }
 
-  class PHPSim {
+  class SimPHP {
     // SQL: an initialised sql.js module; when given, an emulated MySQL server
     // (mysqld.js) listens on /tmp/mysql.sock and 127.0.0.1:3306.
     static async create({ createPHP, wasmBinary, wasmModule, SQL, MysqlServer }) {
       if (!wasmModule) wasmModule = await WebAssembly.compile(wasmBinary);
-      const sim = new PHPSim(createPHP, wasmModule);
+      const sim = new SimPHP(createPHP, wasmModule);
       if (SQL) {
         const Server = MysqlServer || (typeof root.MysqlServer !== 'undefined' ? root.MysqlServer : require('./mysqld.js'));
         sim.mysqld = new Server(SQL);
@@ -115,7 +115,7 @@
 
       let Module;
       const moduleArgs = {
-        phpsimServices: mysqld ? {
+        simphpServices: mysqld ? {
           connect: (path, port) => ((path && /mysql\.sock$/.test(path)) || port === 3306 ? mysqld.connect() : null),
         } : null,
         noInitialRun: true,
@@ -206,7 +206,7 @@
   }
 
   /** Split CGI output into { status, headers[], body } like a web server does. */
-  PHPSim.parseCGI = function (bytes) {
+  SimPHP.parseCGI = function (bytes) {
     // headers end at the first \r\n\r\n or \n\n
     let i = 0, end = -1, bodyStart = 0;
     for (; i < bytes.length - 1; i++) {
@@ -233,17 +233,17 @@
       headers.push([m[1], m[2]]);
     }
     if (!explicitStatus && headers.some(([k]) => k.toLowerCase() === 'location')) { status = 302; reason = 'Found'; }
-    if (!explicitStatus || !reason) reason = PHPSim.REASONS[status] || reason;
+    if (!explicitStatus || !reason) reason = SimPHP.REASONS[status] || reason;
     return { status, reason, headers, body: bytes.subarray(bodyStart) };
   };
 
-  PHPSim.REASONS = {
+  SimPHP.REASONS = {
     200: 'OK', 201: 'Created', 204: 'No Content', 301: 'Moved Permanently', 302: 'Found',
     303: 'See Other', 304: 'Not Modified', 307: 'Temporary Redirect', 400: 'Bad Request',
     401: 'Authorization Required', 403: 'Forbidden', 404: 'Not Found', 405: 'Method Not Allowed',
     500: 'Internal Server Error', 501: 'Method Not Implemented', 503: 'Service Temporarily Unavailable',
   };
 
-  if (typeof module !== 'undefined' && module.exports) module.exports = PHPSim;
-  else root.PHPSim = PHPSim;
+  if (typeof module !== 'undefined' && module.exports) module.exports = SimPHP;
+  else root.SimPHP = SimPHP;
 })(typeof self !== 'undefined' ? self : this);

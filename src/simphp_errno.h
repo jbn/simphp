@@ -4,16 +4,16 @@
  * numbers errno values the WASI way (ENOENT is 44); PHP prints some of them
  * ("stat failed ... (errno=2 - No such file or directory)", MySQL's "(111)",
  * fsockopen()'s $errno). errno itself and the E* constants stay native so
- * libc and PHP agree; the places that *show* a number use PHPSIM_ERRNO(),
+ * libc and PHP agree; the places that *show* a number use SIMPHP_ERRNO(),
  * and strerror() returns glibc's message for the Linux code. */
-#ifndef PHPSIM_ERRNO_H
-#define PHPSIM_ERRNO_H
+#ifndef SIMPHP_ERRNO_H
+#define SIMPHP_ERRNO_H
 #include <errno.h>
 #include <string.h>
 
-extern int phpsim_linux_errno(int wasm_errno);
-extern char *phpsim_strerror(int wasm_errno);
-#define PHPSIM_ERRNO(e) phpsim_linux_errno(e)
-#define strerror(e) phpsim_strerror(e)
+extern int simphp_linux_errno(int wasm_errno);
+extern char *simphp_strerror(int wasm_errno);
+#define SIMPHP_ERRNO(e) simphp_linux_errno(e)
+#define strerror(e) simphp_strerror(e)
 
 #endif

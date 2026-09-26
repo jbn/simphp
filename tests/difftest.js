@@ -12,13 +12,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
-const PHPSim = require('../web/phpsim-core.js');
+const SimPHP = require('../web/simphp-core.js');
 const createPHP = require('../web/php.js');
 
 const ROOT = path.join(__dirname, '..');
 const CORPUS = path.join(__dirname, 'corpus');
 const REF = path.join(CORPUS, '.ref');
-const IMAGE = 'phpsim-reference';
+const IMAGE = 'simphp-reference';
 const ENV = { TZ: 'UTC', PATH: '/usr/local/bin:/usr/bin:/bin', HOME: '/root', LANG: 'C' };
 
 const verbose = process.argv.includes('-v');
@@ -78,13 +78,13 @@ function refresh(files) {
     const q = (v) => `'${String(v).replace(/'/g, `'\\''`)}'`;
     if (cgi) {
       const stdin = fs.existsSync(path.join(CORPUS, f + '.post')) ? `/t/${f}.post` : '/dev/null';
-      lines.push(`rm -rf /tmp/phpsim && mkdir -p /tmp/phpsim && cd /t && env -i ${Object.entries({ ...ENV, ...cgi.env }).map(([k, v]) => `${k}=${q(v)}`).join(' ')} ` +
+      lines.push(`rm -rf /tmp/simphp && mkdir -p /tmp/simphp && cd /t && env -i ${Object.entries({ ...ENV, ...cgi.env }).map(([k, v]) => `${k}=${q(v)}`).join(' ')} ` +
         `timeout 60 php < ${stdin} > /out/${f}.${h}.out 2>/out/${f}.${h}.err; echo $? > /out/${f}.${h}.rc`);
       continue;
     }
     const stdin = fs.existsSync(path.join(CORPUS, f + '.stdin')) ? `/t/${f}.stdin` : '/dev/null';
     const extra = argsFor(f).map((a) => `'${a}'`).join(' ');
-    lines.push(`rm -rf /tmp/phpsim && mkdir -p /tmp/phpsim && cd /t && env -i ${Object.entries(ENV).map(([k, v]) => `${k}='${v}'`).join(' ')} ` +
+    lines.push(`rm -rf /tmp/simphp && mkdir -p /tmp/simphp && cd /t && env -i ${Object.entries(ENV).map(([k, v]) => `${k}='${v}'`).join(' ')} ` +
       `timeout 60 php -q /t/${f} ${extra} < ${stdin} > /out/${f}.${h}.out 2>/out/${f}.${h}.err; echo $? > /out/${f}.${h}.rc`);
   }
   const script = path.join(REF, 'run.sh');
@@ -113,7 +113,7 @@ function firstDiff(a, b) {
 (async () => {
   const files = listCorpus();
   refresh(files);
-  const sim = await PHPSim.create({ createPHP, wasmBinary: fs.readFileSync(path.join(ROOT, 'web/php.wasm')) });
+  const sim = await SimPHP.create({ createPHP, wasmBinary: fs.readFileSync(path.join(ROOT, 'web/php.wasm')) });
   const mounted = mountCorpus();
   let pass = 0, fail = 0;
   for (const f of files) {
@@ -122,8 +122,8 @@ function firstDiff(a, b) {
     const stdinFile = path.join(CORPUS, f + '.stdin');
     const cgi = cgiFor(f);
     const r = cgi
-      ? await sim.run({ args: [], env: { ...ENV, ...cgi.env }, cwd: '/t', files: { ...mounted, '/tmp/phpsim/': null }, stdin: cgi.body, collectFiles: false })
-      : await sim.run({ args: ['-q', '/t/' + f, ...argsFor(f)], env: ENV, cwd: '/t', files: { ...mounted, '/tmp/phpsim/': null },
+      ? await sim.run({ args: [], env: { ...ENV, ...cgi.env }, cwd: '/t', files: { ...mounted, '/tmp/simphp/': null }, stdin: cgi.body, collectFiles: false })
+      : await sim.run({ args: ['-q', '/t/' + f, ...argsFor(f)], env: ENV, cwd: '/t', files: { ...mounted, '/tmp/simphp/': null },
         stdin: fs.existsSync(stdinFile) ? fs.readFileSync(stdinFile) : '', collectFiles: false });
     const got = Buffer.from(r.stdout);
     if (Buffer.compare(ref, got) === 0) { pass++; if (verbose) console.log('ok   ' + f); continue; }

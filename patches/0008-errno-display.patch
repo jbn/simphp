@@ -5,8 +5,8 @@
  
  #include "php.h"
 +
-+#ifndef PHPSIM_ERRNO
-+#define PHPSIM_ERRNO(e) (e)
++#ifndef SIMPHP_ERRNO
++#define SIMPHP_ERRNO(e) (e)
 +#endif
  #include "safe_mode.h"
  #include "fopen_wrappers.h"
@@ -16,7 +16,7 @@
  		if (VCWD_STAT(BG(CurrentStatFile), &BG(sb)) == -1) {
  			if (!IS_LINK_OPERATION() && (!IS_EXISTS_CHECK(type) || errno != ENOENT)) { /* fileexists() test must print no error */
 -				php_error(E_WARNING, "stat failed for %s (errno=%d - %s)", BG(CurrentStatFile), errno, strerror(errno));
-+				php_error(E_WARNING, "stat failed for %s (errno=%d - %s)", BG(CurrentStatFile), PHPSIM_ERRNO(errno), strerror(errno));
++				php_error(E_WARNING, "stat failed for %s (errno=%d - %s)", BG(CurrentStatFile), SIMPHP_ERRNO(errno), strerror(errno));
  			}
  			efree(BG(CurrentStatFile));
  			BG(CurrentStatFile) = NULL;
@@ -25,7 +25,7 @@
  		/* do lstat if the buffer is empty */
  		if (VCWD_LSTAT(filename, &BG(lsb)) == -1) {
 -			php_error(E_WARNING, "lstat failed for %s (errno=%d - %s)", filename, errno, strerror(errno));
-+			php_error(E_WARNING, "lstat failed for %s (errno=%d - %s)", filename, PHPSIM_ERRNO(errno), strerror(errno));
++			php_error(E_WARNING, "lstat failed for %s (errno=%d - %s)", filename, SIMPHP_ERRNO(errno), strerror(errno));
  			RETURN_FALSE;
  		}
  	}
@@ -36,8 +36,8 @@
  
  #include "php.h"
 +
-+#ifndef PHPSIM_ERRNO
-+#define PHPSIM_ERRNO(e) (e)
++#ifndef SIMPHP_ERRNO
++#define SIMPHP_ERRNO(e) (e)
 +#endif
  #include "php_globals.h"
  #include <stdlib.h>
@@ -47,7 +47,7 @@
  			if (arg_count>2) {
  				zval_dtor(*args[2]);
 -				ZVAL_LONG(*args[2], errno);
-+				ZVAL_LONG(*args[2], PHPSIM_ERRNO(errno));
++				ZVAL_LONG(*args[2], SIMPHP_ERRNO(errno));
  			}
  			if (arg_count>3) {
  				zval_dtor(*args[3]);
@@ -56,7 +56,7 @@
  			if (arg_count>2) {
  				zval_dtor(*args[2]);
 -				ZVAL_LONG(*args[2], errno);
-+				ZVAL_LONG(*args[2], PHPSIM_ERRNO(errno));
++				ZVAL_LONG(*args[2], SIMPHP_ERRNO(errno));
  			}
  			if (arg_count>3) {
  				zval_dtor(*args[3]);
@@ -67,8 +67,8 @@
  
  #include "php.h"
 +
-+#ifndef PHPSIM_ERRNO
-+#define PHPSIM_ERRNO(e) (e)
++#ifndef SIMPHP_ERRNO
++#define SIMPHP_ERRNO(e) (e)
 +#endif
  #include "fopen_wrappers.h"
  
@@ -78,7 +78,7 @@
  #endif
  		efree(dirp);
 -		php_error(E_WARNING, "OpenDir: %s (errno %d)", strerror(errno), errno);
-+		php_error(E_WARNING, "OpenDir: %s (errno %d)", strerror(errno), PHPSIM_ERRNO(errno));
++		php_error(E_WARNING, "OpenDir: %s (errno %d)", strerror(errno), SIMPHP_ERRNO(errno));
  		RETURN_FALSE;
  	}
  
@@ -87,7 +87,7 @@
  	
  	if (ret != 0) {
 -		php_error(E_WARNING, "chroot: %s (errno %d)", strerror(errno), errno);
-+		php_error(E_WARNING, "chroot: %s (errno %d)", strerror(errno), PHPSIM_ERRNO(errno));
++		php_error(E_WARNING, "chroot: %s (errno %d)", strerror(errno), SIMPHP_ERRNO(errno));
  		RETURN_FALSE;
  	}
  
@@ -95,7 +95,7 @@
  	
  	if (ret != 0) {
 -		php_error(E_WARNING, "chdir: %s (errno %d)", strerror(errno), errno);
-+		php_error(E_WARNING, "chdir: %s (errno %d)", strerror(errno), PHPSIM_ERRNO(errno));
++		php_error(E_WARNING, "chdir: %s (errno %d)", strerror(errno), SIMPHP_ERRNO(errno));
  		RETURN_FALSE;
  	}
  
@@ -104,7 +104,7 @@
  	
  	if (ret != 0) {
 -		php_error(E_WARNING, "ChDir: %s (errno %d)", strerror(errno), errno);
-+		php_error(E_WARNING, "ChDir: %s (errno %d)", strerror(errno), PHPSIM_ERRNO(errno));
++		php_error(E_WARNING, "ChDir: %s (errno %d)", strerror(errno), SIMPHP_ERRNO(errno));
  		RETURN_FALSE;
  	}
  
@@ -114,8 +114,8 @@
  
  #include "php.h"
  
-+#ifndef PHPSIM_ERRNO
-+#define PHPSIM_ERRNO(e) (e)
++#ifndef SIMPHP_ERRNO
++#define SIMPHP_ERRNO(e) (e)
 +#endif
 +
  #include <sys/stat.h>
@@ -126,7 +126,7 @@
  		if (data->fd == -1)
  			php_error(E_WARNING, "open(%s, O_RDWR) failed: %s (%d)", buf, 
 -					strerror(errno), errno);
-+					strerror(errno), PHPSIM_ERRNO(errno));
++					strerror(errno), SIMPHP_ERRNO(errno));
  	}
  }
  
@@ -135,7 +135,7 @@
  	dir = opendir(dirname);
  	if (!dir) {
 -		php_error(E_NOTICE, "ps_files_cleanup_dir: opendir(%s) failed: %s (%d)\n", dirname, strerror(errno), errno);
-+		php_error(E_NOTICE, "ps_files_cleanup_dir: opendir(%s) failed: %s (%d)\n", dirname, strerror(errno), PHPSIM_ERRNO(errno));
++		php_error(E_NOTICE, "ps_files_cleanup_dir: opendir(%s) failed: %s (%d)\n", dirname, strerror(errno), SIMPHP_ERRNO(errno));
  		return (0);
  	}
  
@@ -144,7 +144,7 @@
  
  	if (n != vallen) {
 -		php_error(E_WARNING, "write failed: %s (%d)", strerror(errno), errno);
-+		php_error(E_WARNING, "write failed: %s (%d)", strerror(errno), PHPSIM_ERRNO(errno));
++		php_error(E_WARNING, "write failed: %s (%d)", strerror(errno), SIMPHP_ERRNO(errno));
  		return FAILURE;
  	}
  
@@ -155,8 +155,8 @@
  #define DONT_USE_RAID
  #include <global.h>
 +
-+#ifndef PHPSIM_ERRNO
-+#define PHPSIM_ERRNO(e) (e)
++#ifndef SIMPHP_ERRNO
++#define SIMPHP_ERRNO(e) (e)
 +#endif
  #if defined(__WIN__) || defined(_WIN32) || defined(_WIN64)
  #include <winsock.h>
@@ -166,7 +166,7 @@
  #else
  #include <errno.h>
 -#define ERRNO errno
-+#define ERRNO PHPSIM_ERRNO(errno)
++#define ERRNO SIMPHP_ERRNO(errno)
  #define SOCKET_ERROR -1
  #define closesocket(A) close(A)
  #endif
@@ -175,7 +175,7 @@
        {
  	net->last_errno=CR_UNKNOWN_HOST;
 -	sprintf(net->last_error, ER(CR_UNKNOWN_HOST), host, errno);
-+	sprintf(net->last_error, ER(CR_UNKNOWN_HOST), host, PHPSIM_ERRNO(errno));
++	sprintf(net->last_error, ER(CR_UNKNOWN_HOST), host, SIMPHP_ERRNO(errno));
  	goto error;
        }
        memcpy(&sock_addr.sin_addr,hp->h_addr, (size_t) hp->h_length);
@@ -184,7 +184,7 @@
    {
      mysql->net.last_errno=EE_FILENOTFOUND;
 -    sprintf(buf,EE(mysql->net.last_errno),tmp_name,errno);
-+    sprintf(buf,EE(mysql->net.last_errno),tmp_name,PHPSIM_ERRNO(errno));
++    sprintf(buf,EE(mysql->net.last_errno),tmp_name,SIMPHP_ERRNO(errno));
      strmake(mysql->net.last_error,buf,sizeof(mysql->net.last_error)-1);
      my_net_write(&mysql->net,"",0); net_flush(&mysql->net);
      my_free(tmp_name,MYF(0));
@@ -193,7 +193,7 @@
    {
      mysql->net.last_errno=CR_SERVER_LOST;
 -    sprintf(mysql->net.last_error,ER(mysql->net.last_errno),errno);
-+    sprintf(mysql->net.last_error,ER(mysql->net.last_errno),PHPSIM_ERRNO(errno));
++    sprintf(mysql->net.last_error,ER(mysql->net.last_errno),SIMPHP_ERRNO(errno));
      my_free(tmp_name,MYF(0));
      DBUG_RETURN(-1);
    }
@@ -201,7 +201,7 @@
    {
      mysql->net.last_errno=EE_READ; /* the errmsg for not entire file read */
 -    sprintf(buf,EE(mysql->net.last_errno),tmp_name,errno);
-+    sprintf(buf,EE(mysql->net.last_errno),tmp_name,PHPSIM_ERRNO(errno));
++    sprintf(buf,EE(mysql->net.last_errno),tmp_name,SIMPHP_ERRNO(errno));
      strmake(mysql->net.last_error,buf,sizeof(mysql->net.last_error)-1);
      my_free(tmp_name,MYF(0));
      DBUG_RETURN(-1);

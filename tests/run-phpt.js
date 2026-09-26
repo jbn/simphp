@@ -6,7 +6,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const PHPSim = require('../web/phpsim-core.js');
+const SimPHP = require('../web/simphp-core.js');
 const createPHP = require('../web/php.js');
 
 const ROOT = path.join(__dirname, '..');
@@ -51,7 +51,7 @@ function skipHeaders(s) {
   for (const t of (targets.length ? targets.map((t) => path.resolve(t)) : DEFAULT_DIRS)) {
     if (fs.existsSync(t)) findTests(t, files);
   }
-  const sim = await PHPSim.create({ createPHP, wasmBinary: fs.readFileSync(path.join(ROOT, 'web/php.wasm')) });
+  const sim = await SimPHP.create({ createPHP, wasmBinary: fs.readFileSync(path.join(ROOT, 'web/php.wasm')) });
   // shared fixtures (quicktester.inc, PEAR sources) at their source-tree paths
   const common = {};
   const mount = (d, depth = 0) => {

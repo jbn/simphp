@@ -1,5 +1,5 @@
 {
-  "name": "phpsim",
+  "name": "simphp",
   "version": "1.0.0",
   "private": true,
   "description": "The original PHP 4.1.1 engine compiled to WebAssembly, with a simulated Apache/CGI server and browser",

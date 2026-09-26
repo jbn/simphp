@@ -2,7 +2,7 @@
  * mysqld.js -- an emulated MySQL 3.23 server for the PHP 4.1.1 simulator.
  *
  * PHP's real mysql extension (and the libmysql 3.23.39 client bundled with
- * PHP 4.1.1) connects to /tmp/mysql.sock or 127.0.0.1:3306; phpsim routes that
+ * PHP 4.1.1) connects to /tmp/mysql.sock or 127.0.0.1:3306; simphp routes that
  * socket here. This file speaks the MySQL 3.23 wire protocol (protocol 10)
  * and executes queries on SQLite (sql.js), translating the MySQL dialect and
  * reproducing MySQL 3.23 behaviour where scripts can see it: implicit column
@@ -473,7 +473,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Column metadata (the MySQL view of a table), stored in __phpsim_meta
+  // Column metadata (the MySQL view of a table), stored in __simphp_meta
   // ---------------------------------------------------------------------------
   const INT_TYPES = { TINYINT: [T.TINY, 4, -128, 127, 255], SMALLINT: [T.SHORT, 6, -32768, 32767, 65535], MEDIUMINT: [T.INT24, 9, -8388608, 8388607, 16777215],
     INT: [T.LONG, 11, -2147483648, 2147483647, 4294967295], INTEGER: [T.LONG, 11, -2147483648, 2147483647, 4294967295], BIGINT: [T.LONGLONG, 20, -9223372036854775808, 9223372036854775807, 18446744073709551615] };
@@ -729,7 +729,7 @@
       const mysql = this.createDb('mysql');
       this.runScript(mysql, [
         "CREATE TABLE user (Host char(60) binary DEFAULT '' NOT NULL, User char(16) binary DEFAULT '' NOT NULL, Password char(16) binary DEFAULT '' NOT NULL, Select_priv enum('N','Y') DEFAULT 'N' NOT NULL, Insert_priv enum('N','Y') DEFAULT 'N' NOT NULL, Update_priv enum('N','Y') DEFAULT 'N' NOT NULL, Delete_priv enum('N','Y') DEFAULT 'N' NOT NULL, PRIMARY KEY Host (Host,User))",
-        "INSERT INTO user VALUES ('localhost','root','','Y','Y','Y','Y'),('phpsim','root','','Y','Y','Y','Y'),('localhost','','','N','N','N','N'),('phpsim','','','N','N','N','N')",
+        "INSERT INTO user VALUES ('localhost','root','','Y','Y','Y','Y'),('simphp','root','','Y','Y','Y','Y'),('localhost','','','N','N','N','N'),('simphp','','','N','N','N','N')",
         "CREATE TABLE db (Host char(60) binary DEFAULT '' NOT NULL, Db char(64) binary DEFAULT '' NOT NULL, User char(16) binary DEFAULT '' NOT NULL, PRIMARY KEY Host (Host,Db,User))",
         "INSERT INTO db VALUES ('%','test',''),('%','test\\\\_%','')",
         "CREATE TABLE host (Host char(60) binary DEFAULT '' NOT NULL, Db char(64) binary DEFAULT '' NOT NULL, PRIMARY KEY Host (Host,Db))",
@@ -747,7 +747,7 @@
     openDb(bytes) {
       const db = bytes ? new this.SQL.Database(bytes) : new this.SQL.Database();
       this.registerFunctions(db);
-      db.run('CREATE TABLE IF NOT EXISTS __phpsim_meta (tbl TEXT PRIMARY KEY, def TEXT)');
+      db.run('CREATE TABLE IF NOT EXISTS __simphp_meta (tbl TEXT PRIMARY KEY, def TEXT)');
       return db;
     }
     createDb(name) {
@@ -905,8 +905,8 @@
         try { return new RegExp(String(re), 'i').test(String(s)) ? 1 : 0; } catch (e) { return 0; }
       });
       reg('my_glob', (a, b) => 0);
-      reg('phpsim_norm', (kind, v, len, extra) => normalize(kind, v, len, extra ? JSON.parse(extra) : {}));
-      reg('phpsim_now', now);
+      reg('simphp_norm', (kind, v, len, extra) => normalize(kind, v, len, extra ? JSON.parse(extra) : {}));
+      reg('simphp_now', now);
     }
   }
 
@@ -936,7 +936,7 @@
       this.authed = false;
       this.closed = false;
       this.lastInsertId = 0;
-      this.scramble = 'phpsimXX'.split('').map(() => String.fromCharCode(33 + Math.floor(Math.random() * 90))).join('');
+      this.scramble = 'simphpXX'.split('').map(() => String.fromCharCode(33 + Math.floor(Math.random() * 90))).join('');
       if (!this.internal) this.greet();
     }
 
@@ -1185,7 +1185,7 @@
     // --- metadata ------------------------------------------------------------
     tableMeta(name, mustExist) {
       const db = this.database();
-      const r = db.exec('SELECT def FROM __phpsim_meta WHERE tbl = ' + sqlStr(name));
+      const r = db.exec('SELECT def FROM __simphp_meta WHERE tbl = ' + sqlStr(name));
       if (r.length && r[0].values.length) return JSON.parse(r[0].values[0][0]);
       // a table created some other way: derive from SQLite
       const info = db.exec('PRAGMA table_info(' + qid(name) + ')');
@@ -1202,10 +1202,10 @@
       };
     }
     saveMeta(meta) {
-      this.database().run('INSERT OR REPLACE INTO __phpsim_meta (tbl, def) VALUES (?, ?)', [meta.name, JSON.stringify(meta)]);
+      this.database().run('INSERT OR REPLACE INTO __simphp_meta (tbl, def) VALUES (?, ?)', [meta.name, JSON.stringify(meta)]);
     }
     listTables() {
-      const r = this.database().exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' AND name != '__phpsim_meta' ORDER BY name");
+      const r = this.database().exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' AND name != '__simphp_meta' ORDER BY name");
       return r.length ? r[0].values.map((v) => v[0]) : [];
     }
     fieldFromColumn(c, table) {
@@ -1356,15 +1356,15 @@
         else if (['real', 'date', 'datetime', 'time', 'year', 'timestamp'].includes(c.kind)) extra = {};
         if (!extra) continue;
         const len = c.kind === 'string' && !c.isBlob ? c.length : (c.isBlob ? c.length : 0);
-        sets.push(qid(c.name) + ' = phpsim_norm(' + sqlStr(c.kind) + ', ' + qid(c.name) + ', ' + len + ', ' + sqlStr(JSON.stringify(extra)) + ')');
+        sets.push(qid(c.name) + ' = simphp_norm(' + sqlStr(c.kind) + ', ' + qid(c.name) + ', ' + len + ', ' + sqlStr(JSON.stringify(extra)) + ')');
       }
       const ts = meta.columns.find((c) => c.autoTs);
       const where = ' WHERE rowid = NEW.rowid';
       const insSets = sets.slice();
-      if (ts) insSets.push(qid(ts.name) + ' = CASE WHEN NEW.' + qid(ts.name) + ' IS NULL OR NEW.' + qid(ts.name) + " = '' OR NEW." + qid(ts.name) + ' = 0 THEN phpsim_now() ELSE ' + qid(ts.name) + ' END');
+      if (ts) insSets.push(qid(ts.name) + ' = CASE WHEN NEW.' + qid(ts.name) + ' IS NULL OR NEW.' + qid(ts.name) + " = '' OR NEW." + qid(ts.name) + ' = 0 THEN simphp_now() ELSE ' + qid(ts.name) + ' END');
       if (insSets.length) db.run('CREATE TRIGGER ' + qid(t + '__ins') + ' AFTER INSERT ON ' + qid(t) + ' BEGIN UPDATE ' + qid(t) + ' SET ' + insSets.join(', ') + where + '; END');
       const updSets = sets.slice();
-      if (ts) updSets.push(qid(ts.name) + ' = CASE WHEN NEW.' + qid(ts.name) + ' IS OLD.' + qid(ts.name) + ' THEN phpsim_now() ELSE ' + qid(ts.name) + ' END');
+      if (ts) updSets.push(qid(ts.name) + ' = CASE WHEN NEW.' + qid(ts.name) + ' IS OLD.' + qid(ts.name) + ' THEN simphp_now() ELSE ' + qid(ts.name) + ' END');
       if (updSets.length) db.run('CREATE TRIGGER ' + qid(t + '__upd') + ' AFTER UPDATE ON ' + qid(t) + ' BEGIN UPDATE ' + qid(t) + ' SET ' + updSets.join(', ') + where + '; END');
     }
 
@@ -1404,7 +1404,7 @@
         for (const n of names) {
           if (missing.includes(n)) continue;
           db.run('DROP TABLE ' + qid(n));
-          db.run('DELETE FROM __phpsim_meta WHERE tbl = ?', [n]);
+          db.run('DELETE FROM __simphp_meta WHERE tbl = ?', [n]);
         }
         this.srv.dirty.add(this.db);
         return {};
@@ -1468,7 +1468,7 @@
         } else if (K === 'RENAME') {
           const to = identName(spec[spec.length - 1]);
           db.run('ALTER TABLE ' + qid(table) + ' RENAME TO ' + qid(to));
-          db.run('DELETE FROM __phpsim_meta WHERE tbl = ?', [table]);
+          db.run('DELETE FROM __simphp_meta WHERE tbl = ?', [table]);
           meta.name = to;
           this.saveMeta(meta);
           this.makeTriggers(meta);
@@ -1908,7 +1908,7 @@
           ['datadir', '/var/lib/mysql/'], ['have_bdb', 'NO'], ['have_innodb', 'NO'], ['have_isam', 'YES'], ['have_raid', 'NO'], ['have_symlink', 'YES'],
           ['have_openssl', 'NO'], ['interactive_timeout', '28800'], ['key_buffer_size', '8388600'], ['language', '/usr/share/mysql/english/'],
           ['log', 'OFF'], ['long_query_time', '10'], ['lower_case_table_names', '0'], ['max_allowed_packet', '1048576'], ['max_connections', '100'],
-          ['max_heap_table_size', '16777216'], ['pid_file', '/var/lib/mysql/phpsim.pid'], ['port', '3306'], ['protocol_version', '10'],
+          ['max_heap_table_size', '16777216'], ['pid_file', '/var/lib/mysql/simphp.pid'], ['port', '3306'], ['protocol_version', '10'],
           ['skip_networking', 'OFF'], ['socket', '/tmp/mysql.sock'], ['table_type', 'MYISAM'], ['timezone', 'PST'], ['tmpdir', '/tmp/'],
           ['version', SERVER_VERSION + '-log'], ['wait_timeout', '28800']];
         return this.makeResult(['Variable_name', 'Value'], vars.filter((v) => !like || likeMatch(v[0], like)));

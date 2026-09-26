@@ -1,14 +1,14 @@
 // A small /bin/sh for the simulated server.
 //
 // PHP 4 starts every external program through popen() (exec, system,
-// passthru, shell_exec, backticks, popen(), mail()); src/phpsim_sys.c routes
+// passthru, shell_exec, backticks, popen(), mail()); src/simphp_sys.c routes
 // those here. The shell runs synchronously against the in-memory filesystem
 // and mimics a 2001 Linux box (GNU fileutils/textutils/sh-utils era) running
 // Apache as `nobody`. Data is handled as byte strings (one char per byte).
 addToLibrary({
-  $phpsimSh__deps: ['$FS', '$phpsimZone', 'getenv', '$UTF8ToString', '$stringToUTF8OnStack', '$stackSave', '$stackRestore', 'phpsim_sleep_ms'],
-  $phpsimSh: {
-    UNAME: { s: 'Linux', n: 'phpsim', r: '2.4.16', v: '#1 Fri Dec 21 12:00:00 PST 2001', m: 'i686', p: 'unknown', o: 'GNU/Linux' },
+  $simphpSh__deps: ['$FS', '$simphpZone', 'getenv', '$UTF8ToString', '$stringToUTF8OnStack', '$stackSave', '$stackRestore', 'simphp_sleep_ms'],
+  $simphpSh: {
+    UNAME: { s: 'Linux', n: 'simphp', r: '2.4.16', v: '#1 Fri Dec 21 12:00:00 PST 2001', m: 'i686', p: 'unknown', o: 'GNU/Linux' },
 
     getenv: function (name) {
       var sp = stackSave();
@@ -245,7 +245,7 @@ addToLibrary({
 
     // --- time ----------------------------------------------------------------
     strftime: function (fmt, ms) {
-      var info = phpsimZone().info(ms);
+      var info = simphpZone().info(ms);
       var d = new Date(ms + info.off * 1000);
       var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       var MONS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -338,7 +338,7 @@ addToLibrary({
       bash: function (a, stdin, ctx) { return this.cmds.sh.call(this, a, stdin, ctx); },
       whoami: () => ({ out: 'nobody\n' }),
       id: () => ({ out: 'uid=99(nobody) gid=99(nobody) groups=99(nobody)\n' }),
-      hostname: () => ({ out: 'phpsim\n' }),
+      hostname: () => ({ out: 'simphp\n' }),
       uname: function (a) {
         var U = this.UNAME, flags = a.join('').replace(/-/g, '');
         if (!flags) flags = 's';
@@ -363,7 +363,7 @@ addToLibrary({
         }
         return { out: this.strftime(fmt, ms) + '\n' };
       },
-      sleep: function (a) { var s = parseFloat(a[0]) || 0; _phpsim_sleep_ms(s * 1000); return {}; },
+      sleep: function (a) { var s = parseFloat(a[0]) || 0; _simphp_sleep_ms(s * 1000); return {}; },
       env: function (a, i, ctx) {
         var keys = ['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'PWD', 'TZ', 'LANG', 'SERVER_SOFTWARE', 'SERVER_NAME', 'GATEWAY_INTERFACE', 'REQUEST_METHOD', 'QUERY_STRING', 'REQUEST_URI', 'SCRIPT_NAME', 'SCRIPT_FILENAME', 'DOCUMENT_ROOT', 'REMOTE_ADDR', 'HTTP_HOST', 'HTTP_USER_AGENT'];
         var out = '';
@@ -707,10 +707,10 @@ addToLibrary({
       var qid = 'f' + Math.random().toString(36).slice(2, 13).toUpperCase().replace(/[^A-Z0-9]/g, '0');
       var id = this.strftime('%Y%m%d%H%M%S', now) + '.' + qid;
       var extra = ['Return-Path: <' + envFrom + '>',
-        'Received: (from nobody@localhost)\n\tby phpsim (8.11.6/8.11.6) id ' + qid + ';\n\t' + rfc];
+        'Received: (from nobody@localhost)\n\tby simphp (8.11.6/8.11.6) id ' + qid + ';\n\t' + rfc];
       if (!headers.some((h) => /^Date:/i.test(h))) extra.push('Date: ' + rfc);
       if (!headers.some((h) => /^From:/i.test(h))) extra.push('From: ' + from);
-      if (!headers.some((h) => /^Message-Id:/i.test(h))) extra.push('Message-Id: <' + id + '@phpsim>');
+      if (!headers.some((h) => /^Message-Id:/i.test(h))) extra.push('Message-Id: <' + id + '@simphp>');
       var mbox = 'From ' + envFrom + '  ' + stamp + '\n' + extra.concat(headers.filter(Boolean)).join('\n') +
         '\nX-Envelope-To: ' + rcpts.join(', ') + '\n\n' + body.replace(/^From /gm, '>From ') + (body.endsWith('\n') ? '' : '\n') + '\n';
       try { FS.mkdir('/var'); } catch (e) {}
@@ -720,9 +720,9 @@ addToLibrary({
     },
   },
 
-  phpsim_shell__deps: ['$phpsimSh', '$FS', 'malloc', '$UTF8ToString'],
-  phpsim_shell: (cmdPtr, inPtr, inLen, outPtrPtr, outLenPtr) => {
-    var Sh = phpsimSh;
+  simphp_shell__deps: ['$simphpSh', '$FS', 'malloc', '$UTF8ToString'],
+  simphp_shell: (cmdPtr, inPtr, inLen, outPtrPtr, outLenPtr) => {
+    var Sh = simphpSh;
     var cmd = UTF8ToString(cmdPtr);
     var input = inPtr ? Sh.bytesToStr(HEAPU8.subarray(inPtr, inPtr + inLen)) : '';
     var errStream = null;

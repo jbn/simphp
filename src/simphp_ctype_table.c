@@ -1,7 +1,7 @@
 /* Generated from src/ctype_glibc_c_locale.txt: glibc (i386) __ctype_b_loc()[c]
  * for c = -128 .. 2199 in the C locale, including the out-of-range entries past
  * 255 that PHP 4.1.1's ctype_*(int) reads. Do not edit. */
-static const unsigned short phpsim_glibc_ctype_b[2328] = {
+static const unsigned short simphp_glibc_ctype_b[2328] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

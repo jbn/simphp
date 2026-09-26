@@ -1,7 +1,7 @@
 <?php
 error_reporting(E_ALL);
-@mkdir("/tmp/phpsim", 0777);
-$d = "/tmp/phpsim/io";
+@mkdir("/tmp/simphp", 0777);
+$d = "/tmp/simphp/io";
 @mkdir($d, 0777);
 $f = "$d/test.txt";
 $fp = fopen($f, "w");

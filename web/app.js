@@ -6,7 +6,7 @@
  * it maps URLs to files, builds CGI environments, keeps a cookie jar,
  * follows redirects, and routes links/forms from the rendered page back in.
  */
-/* global CodeMirror, PHPSim */
+/* global CodeMirror, SimPHP */
 (function () {
   'use strict';
 
@@ -14,7 +14,7 @@
   const SERVER_SOFTWARE = 'Apache/1.3.22 (Unix)';
   const DEFAULT_UA = 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)';
   const PHP_EXT = /\.(php|php3|php4|phtml)$/i;
-  const STORE_KEY = 'phpsim.workspace.v1';
+  const STORE_KEY = 'simphp.workspace.v1';
   const enc = new TextEncoder();
   const $ = (id) => document.getElementById(id);
 
@@ -461,7 +461,7 @@
     const r = await engine.run({
       args: [], env, stdin: req.body || '', files: snapshotFiles(), cwd: dirname(fsPath), mysqld: !!state.settings.mysql,
     });
-    let res = PHPSim.parseCGI(r.stdout);
+    let res = SimPHP.parseCGI(r.stdout);
     const headersDone = hasHeaderEnd(r.stdout);
     if (r.crash) {
       // Apache 1.3 + CGI: a dead child with no complete headers is a 500;
@@ -665,7 +665,7 @@
   // resources go back through the simulated server.
   const SHIM = '<script>(' + function () {
     var P = window.parent;
-    function send(m) { m.__phpsim = 1; P.postMessage(m, '*'); }
+    function send(m) { m.__simphp = 1; P.postMessage(m, '*'); }
     function nav(href, target) { send({ type: 'nav', href: href }); }
     document.addEventListener('click', function (e) {
       if (e.defaultPrevented || e.button !== 0) return;
@@ -722,7 +722,7 @@
     }
     window.addEventListener('message', function (e) {
       var m = e.data;
-      if (!m || m.__phpsimParent !== 1 || m.type !== 'resource') return;
+      if (!m || m.__simphpParent !== 1 || m.type !== 'resource') return;
       (pending[m.url] || []).forEach(function (p) {
         if (p[1] === 'background') p[0].style.backgroundImage = 'url("' + m.dataUrl + '")';
         else p[0].setAttribute(p[1], m.dataUrl);
@@ -736,7 +736,7 @@
   // The rendered page must not fetch relative URLs from the real host (they
   // belong to the simulated server); point its base URL at a host that can
   // never resolve, and let the shim fetch them through the simulator instead.
-  const BASE = '<base href="http://phpsim.invalid/">';
+  const BASE = '<base href="http://simphp.invalid/">';
 
   function showPageHtml(html) {
     $('page-empty').hidden = true;
@@ -751,7 +751,7 @@
     const frame = $('page-frame');
     if (ev.source !== frame.contentWindow) return;
     const m = ev.data;
-    if (!m || m.__phpsim !== 1) return;
+    if (!m || m.__simphp !== 1) return;
     const base = state.url;
     if (m.type === 'nav') {
       const u = resolveUrl(m.href, base);
@@ -816,7 +816,7 @@
         const ctype = contentType(res).split(';')[0];
         const dataUrl = 'data:' + ctype + ';base64,' + b64(res.body);
         const frame = $('page-frame');
-        if (frame.contentWindow) frame.contentWindow.postMessage({ __phpsimParent: 1, type: 'resource', url, dataUrl }, '*');
+        if (frame.contentWindow) frame.contentWindow.postMessage({ __simphpParent: 1, type: 'resource', url, dataUrl }, '*');
       } catch (e) {
         state.busy = false;
       }
