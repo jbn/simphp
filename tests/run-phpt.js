@@ -13,6 +13,10 @@ const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'build/php-4.1.1');
 const DEFAULT_DIRS = ['tests', 'ext/standard/tests', 'ext/xml/tests', 'ext/session/tests',
   'ext/ctype/tests', 'pear/tests'].map((d) => path.join(SRC, d));
+// Bundled tests that fail on native PHP 4.1.1 too (tests/difftest.js shows our
+// output is identical to it): they expect later behavior or a Latin-1 locale.
+// They are reported but don't fail the run.
+const KNOWN_FAILURES = new Set(['tests/lang/029.phpt', 'ext/standard/tests/math/pow.phpt', 'ext/xml/tests/007.phpt']);
 
 function findTests(p, out) {
   const st = fs.statSync(p);
@@ -101,10 +105,11 @@ function skipHeaders(s) {
     if (ok) { pass++; if (verbose) console.log('PASS ' + rel); }
     else {
       fail++; failed.push(rel);
-      console.log('FAIL ' + rel + '  (' + (sec.TEST || '').trim() + ')' + (r.aborted ? ' [' + r.aborted + ']' : ''));
+      console.log((KNOWN_FAILURES.has(rel) ? 'FAIL (known) ' : 'FAIL ') + rel + '  (' + (sec.TEST || '').trim() + ')' + (r.aborted ? ' [' + r.aborted + ']' : ''));
       if (verbose) console.log('--- expected\n' + (sec.EXPECT || '') + '--- got\n' + out + '\n---');
     }
   }
-  console.log(`\npassed ${pass}  failed ${fail}  skipped ${skip}  (total ${pass + fail + skip})`);
-  process.exitCode = fail ? 1 : 0;
+  const unexpected = failed.filter((f) => !KNOWN_FAILURES.has(f));
+  console.log(`\npassed ${pass}  failed ${fail} (${fail - unexpected.length} known)  skipped ${skip}  (total ${pass + fail + skip})`);
+  process.exitCode = unexpected.length ? 1 : 0;
 })();
