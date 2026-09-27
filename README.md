@@ -124,6 +124,8 @@ server reproduces what scripts can observe of MySQL 3.23:
   `ENUM`/`SET`, `DECIMAL` formatting and `TIMESTAMP(14)` auto-update;
 * case-insensitive string columns and "changed rows" `UPDATE` counts;
 * `DELETE FROM t` reporting 0 rows;
+* `db.table` names, with or without a selected database, and reads that join
+  tables of several databases;
 * `SHOW`/`DESCRIBE`/`SHOW CREATE TABLE`, and MySQL functions (`NOW`,
   `DATE_FORMAT`, `PASSWORD`, `CONCAT`, ...);
 * MySQL error numbers and messages (`1062 Duplicate entry '1' for key 1`, ...).

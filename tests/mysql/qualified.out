@@ -1,0 +1,83 @@
+-- no database selected
+CREATE DATABASE shop
+  => ok, affected 1, insert id 0
+CREATE TABLE shop.items (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(20), added DATE)
+  => ok, affected 0, insert id 0
+INSERT INTO shop.items (name, added) VALUES ('apple', '2001-12-10')
+  => ok, affected 1, insert id 1
+INSERT INTO `shop`.`items` VALUES (NULL, 'pear', '2001-12-11')
+  => ok, affected 1, insert id 2
+SELECT * FROM shop.items
+  => id int(11), name string(20), added date(10)
+     1 | apple | 2001-12-10
+     2 | pear | 2001-12-11
+SELECT shop.items.name FROM shop.items WHERE shop.items.id = 2
+  => name string(20)
+     pear
+SELECT i.name FROM shop.items i ORDER BY i.name DESC
+  => name string(20)
+     pear
+     apple
+UPDATE shop.items SET name = 'Apple' WHERE id = 1
+  => ok, affected 1, insert id 0
+DESCRIBE shop.items
+  => Field string(5), Type string(11), Null string(4), Key string(3), Default string(7), Extra string(14)
+     id | int(11) |  | PRI | NULL | auto_increment
+     name | varchar(20) | YES |  | NULL | 
+     added | date | YES |  | NULL | 
+SHOW COLUMNS FROM items FROM shop
+  => Field string(5), Type string(11), Null string(4), Key string(3), Default string(7), Extra string(14)
+     id | int(11) |  | PRI | NULL | auto_increment
+     name | varchar(20) | YES |  | NULL | 
+     added | date | YES |  | NULL | 
+SELECT * FROM items
+  => ERROR 1046: No Database Selected
+SELECT * FROM nosuch.items
+  => ERROR 1146: Table 'nosuch.items' doesn't exist
+SELECT * FROM shop.nosuch
+  => ERROR 1146: Table 'shop.nosuch' doesn't exist
+CREATE TABLE nosuch.t (a INT)
+  => ERROR 1049: Unknown database 'nosuch'
+-- test selected, reaching into shop
+CREATE TABLE stock (item INT, qty INT)
+  => ok, affected 0, insert id 0
+INSERT INTO stock VALUES (1, 10), (2, 0), (3, 5)
+  => ok, affected 3, insert id 0
+SELECT i.name, s.qty FROM stock s, shop.items i WHERE i.id = s.item ORDER BY i.id
+  => name string(20), qty int(11)
+     Apple | 10
+     pear | 0
+SELECT items.name, stock.qty FROM shop.items LEFT JOIN stock ON stock.item = items.id
+  => name string(20), qty int(11)
+     Apple | 10
+     pear | 0
+SELECT DATABASE(), COUNT(*) FROM shop.items
+  => DATABASE() string(4), COUNT(*) int(21)
+     test | 2
+INSERT INTO shop.items (name) SELECT 'plum' FROM stock WHERE item = 3
+  => ok, affected 1, insert id 3
+CREATE TABLE shop.low SELECT item, qty FROM test.stock WHERE qty < 6
+  => ok, affected 2, insert id 0
+SELECT * FROM shop.low
+  => item int(11), qty int(11)
+     2 | 0
+     3 | 5
+SELECT nosuch.stock.qty FROM stock
+  => ERROR 1109: Unknown table 'stock' in field list
+DELETE FROM shop.items WHERE id = 2
+  => ok, affected 1, insert id 0
+SELECT id, name FROM shop.items
+  => id int(11), name string(20)
+     1 | Apple
+     3 | plum
+DROP TABLE shop.low, stock
+  => ok, affected 0, insert id 0
+DROP TABLE shop.low
+  => ERROR 1051: Unknown table 'low'
+DROP TABLE IF EXISTS shop.low, nosuch.t
+  => ok, affected 0, insert id 0
+SHOW TABLES
+  => Tables_in_test string(14)
+SHOW TABLES FROM shop
+  => Tables_in_shop string(14)
+     items

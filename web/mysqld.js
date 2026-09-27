@@ -1110,8 +1110,19 @@
         if (rest.length) throw new SqlError(1064, "You have an error in your SQL syntax near '" + rawOf(toks.slice(semi)).slice(0, 80) + "' at line 1");
         toks = toks.slice(0, semi);
       }
+      if (!sig(toks).length) throw new SqlError(1065, 'Query was empty');
+      let plan;
+      try { plan = this.qualify(toks); } catch (e) {
+        if (e instanceof SqlError) throw e;
+        throw this.mapError(e, sql, toks);
+      }
+      if (!plan) return this.dispatch(toks, sql);
+      if (plan.drops) return this.dropQualified(plan.drops, plan.ifExists);
+      return this.withDatabases(plan, () => this.dispatch(plan.toks, sql));
+    }
+
+    dispatch(toks, sql) {
       const s = sig(toks);
-      if (!s.length) throw new SqlError(1065, 'Query was empty');
       const K = kw(s[0]);
       try {
         switch (K) {
@@ -1149,10 +1160,185 @@
       }
     }
 
+    // --- db.table ------------------------------------------------------------
+    // MySQL names a table in another database as db.table (and a column as
+    // db.table.col). Each database here is its own SQLite database, so a
+    // statement runs against the one it names: the qualifiers are stripped and
+    // the statement runs with that database current. A SELECT that reads
+    // tables of several databases ATTACHes the others to the one it runs on.
+    // Returns null when the statement names no other database.
+    qualify(toks) {
+      const s = sig(toks);
+      const K0 = kw(s[0]);
+      if (['LOCK', 'UNLOCK', 'USE', 'SET'].includes(K0)) return null;
+      const isName = (t) => !!t && (t.t === 'id' || t.t === 'qid');
+      const isDot = (t) => !!t && t.t === 'op' && t.v === '.';
+      const isShow = K0 === 'SHOW';
+      const createIndex = (K0 === 'CREATE' && s.slice(1, 4).some((t) => kw(t) === 'INDEX')) || (K0 === 'DROP' && kw(s[1]) === 'INDEX');
+      const tableAfter = (i) => {
+        const P = kw(s[i - 1]);
+        if (!P) return false;
+        if (['FROM', 'JOIN', 'STRAIGHT_JOIN', 'UPDATE', 'TABLE', 'TABLES', 'TRUNCATE'].includes(P)) return true;
+        if (P === 'INTO') return !['OUTFILE', 'DUMPFILE'].includes(kw(s[i]));
+        if (P === 'IN') return isShow;
+        if (['DESCRIBE', 'DESC', 'EXPLAIN'].includes(P)) return i === 1;
+        if (P === 'EXISTS') return K0 === 'CREATE' || K0 === 'DROP';
+        if (P === 'ON') return createIndex;
+        if (P === 'TO') return K0 === 'RENAME' || (K0 === 'ALTER' && kw(s[i - 2]) === 'RENAME');
+        if (P === 'RENAME' || P === 'AS') return K0 === 'ALTER' && (P === 'RENAME' || kw(s[i - 2]) === 'RENAME');
+        if (['INSERT', 'REPLACE', 'LOW_PRIORITY', 'DELAYED', 'IGNORE', 'HIGH_PRIORITY', 'QUICK'].includes(P)) {
+          return ['INSERT', 'REPLACE', 'UPDATE', 'DELETE'].includes(K0);
+        }
+        return false;
+      };
+      const NOT_TABLE = new Set(['INTO', 'FROM', 'TABLE', 'TABLES', 'SELECT', 'IGNORE', 'LOW_PRIORITY', 'DELAYED', 'HIGH_PRIORITY',
+        'QUICK', 'IF', 'TEMPORARY', 'VALUES', 'VALUE', 'SET', 'TO', 'AS', 'DUAL']);
+      const END_LIST = new Set(['WHERE', 'SET', 'VALUES', 'VALUE', 'SELECT', 'ON', 'USING', 'GROUP', 'ORDER', 'LIMIT', 'HAVING',
+        'PROCEDURE', 'UNION', 'LIKE']);
+
+      const refs = [];            // { i: index in s, db, table, column: bool }
+      let usesCurrent = false;
+      let firstDb;                // database of the first table named
+      let depth = 0, listDepth = -1;
+      for (let i = 0; i < s.length; i++) {
+        const t = s[i];
+        if (t.t === 'op' && t.v === '(') { depth++; continue; }
+        if (t.t === 'op' && t.v === ')') { depth--; if (depth < listDepth) listDepth = -1; continue; }
+        if (END_LIST.has(kw(t)) && depth === listDepth) listDepth = -1;
+        if (!isName(t)) continue;
+        if (isDot(s[i + 1]) && isName(s[i + 2]) && isDot(s[i + 3]) && (isName(s[i + 4]) || (s[i + 4] && s[i + 4].v === '*'))) {
+          refs.push({ i, db: identName(t), table: identName(s[i + 2]), column: true });
+          i += 4;
+          continue;
+        }
+        const atTable = tableAfter(i) || (s[i - 1] && s[i - 1].v === ',' && depth === listDepth);
+        if (!atTable || (t.t === 'id' && NOT_TABLE.has(kw(t)))) {
+          if (isDot(s[i + 1])) i += 2;
+          continue;
+        }
+        listDepth = depth;
+        if (isDot(s[i + 1]) && isName(s[i + 2])) {
+          refs.push({ i, db: identName(t), table: identName(s[i + 2]), column: false });
+          if (firstDb === undefined) firstDb = identName(t);
+          i += 2;
+        } else if (!isShow) {
+          usesCurrent = true;
+          if (firstDb === undefined) firstDb = this.db;
+        }
+      }
+      // SHOW COLUMNS/INDEX FROM t FROM db
+      if (isShow && !refs.length) {
+        const at = s.map((t, k) => (['FROM', 'IN'].includes(kw(t)) ? k : -1)).filter((k) => k >= 0);
+        if (at.length === 2 && isName(s[at[0] + 1]) && isName(s[at[1] + 1]) && at[1] === at[0] + 2 &&
+          ['COLUMNS', 'FIELDS', 'INDEX', 'INDEXES', 'KEYS'].includes(kw(s[1]) === 'FULL' ? kw(s[2]) : kw(s[1]))) {
+          const db = identName(s[at[1] + 1]);
+          if (!this.srv.dbs.has(db)) throw new SqlError(1049, "Unknown database '" + db + "'");
+          return { db, attach: new Map(), toks: s.slice(0, at[1]).concat(s.slice(at[1] + 2)) };
+        }
+      }
+      if (!refs.length) return null;
+
+      const tables = refs.filter((r) => !r.column);
+      if (K0 === 'DROP' && kw(s[1]) !== 'INDEX' && tables.length) {
+        // DROP TABLE may name tables of several databases
+        const drops = [];
+        for (const r of tables) drops.push({ db: r.db, table: r.table });
+        if (usesCurrent) {
+          if (!this.db) throw new SqlError(1046, 'No Database Selected');
+          let k = kw(s[1]) === 'TEMPORARY' ? 3 : 2;
+          if (kw(s[k]) === 'IF') k += 2;
+          for (const p of splitTopLevel(s.slice(k))) {
+            const q = p.filter((x) => !isWs(x));
+            if (q.length === 1) drops.push({ db: this.db, table: identName(q[0]) });
+          }
+        }
+        return { drops, ifExists: s.some((t) => kw(t) === 'EXISTS') };
+      }
+      if (usesCurrent && !this.db) throw new SqlError(1046, 'No Database Selected');
+      for (const r of tables) {
+        if (this.srv.dbs.has(r.db)) continue;
+        if (K0 === 'CREATE' || ((K0 === 'ALTER' || K0 === 'RENAME') && r !== tables[0])) throw new SqlError(1049, "Unknown database '" + r.db + "'");
+        throw new SqlError(1146, "Table '" + r.db + '.' + r.table + "' doesn't exist");
+      }
+      const dbs = new Set(tables.map((r) => r.db));
+      if (usesCurrent) dbs.add(this.db);
+      for (const r of refs) {
+        if (r.column && !dbs.has(r.db)) throw new SqlError(1109, "Unknown table '" + r.table + "' in field list");
+      }
+      const target = K0 === 'SELECT' && usesCurrent ? this.db : firstDb !== undefined ? firstDb : refs[0].db;
+      const attach = new Map();   // SQLite schema name -> database
+      for (const d of dbs) if (d !== target) attach.set(/^(main|temp)$/i.test(d) ? '__simphp_db_' + d : d, d);
+      if (attach.size && !['SELECT', 'INSERT', 'REPLACE', 'CREATE'].includes(K0)) {
+        throw new SqlError(1105, 'simphp: ' + K0 + ' across databases is not supported');
+      }
+      const schemaOf = new Map([...attach].map(([a, d]) => [d, a]));
+
+      // rewrite: drop "db." where the statement runs on db (and from column
+      // references); name attached databases by their schema, giving their
+      // tables an alias so table.col keeps working
+      const pos = [];
+      toks.forEach((t, k) => { if (!isWs(t)) pos.push(k); });
+      const edits = new Map();    // index in toks -> { skipTo, replace, after }
+      for (const r of refs) {
+        const from = pos[r.i];
+        if (r.column || r.db === target) { edits.set(from, { skipTo: pos[r.i + 2] }); continue; }
+        const next = s[r.i + 3];
+        const aliased = kw(next) === 'AS' || (isName(next) && !['WHERE', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'JOIN', 'ON', 'USING', 'GROUP',
+          'ORDER', 'LIMIT', 'HAVING', 'NATURAL', 'CROSS', 'STRAIGHT_JOIN', 'USE', 'IGNORE', 'FORCE', 'UNION', 'PROCEDURE', 'INTO'].includes(kw(next)));
+        edits.set(from, { skipTo: from + 1, replace: { t: 'qid', v: schemaOf.get(r.db), raw: '`' + schemaOf.get(r.db) + '`' } });
+        if (!aliased) edits.set(pos[r.i + 2], { skipTo: pos[r.i + 2] + 1, after: true, table: s[r.i + 2] });
+      }
+      const out = [];
+      for (let k = 0; k < toks.length;) {
+        const e = edits.get(k);
+        if (!e) { out.push(toks[k++]); continue; }
+        if (e.replace) out.push(e.replace);
+        if (e.after) out.push(e.table, { t: 'ws', v: ' ', raw: ' ' }, { t: 'id', v: 'AS', raw: 'AS' }, { t: 'ws', v: ' ', raw: ' ' }, { t: 'qid', v: identName(e.table), raw: '`' + identName(e.table) + '`' });
+        k = e.skipTo;
+      }
+      return { db: target, attach, toks: out };
+    }
+
+    withDatabases(plan, fn) {
+      const save = this.db;
+      this.db = plan.db;
+      const attached = [];
+      let main = null;
+      try {
+        if (plan.attach.size) {
+          main = this.database();
+          for (const [schema, name] of plan.attach) {
+            main.run('ATTACH DATABASE ? AS ' + qid(schema), ['/' + this.srv.dbs.get(name).filename]);
+            attached.push(schema);
+          }
+        }
+        this._attached = plan.attach;
+        return fn();
+      } finally {
+        this._attached = null;
+        for (const a of attached) { try { main.run('DETACH DATABASE ' + qid(a)); } catch (e) { /* keep going */ } }
+        this.db = save;
+      }
+    }
+
+    dropQualified(drops, ifExists) {
+      const missing = drops.filter((d) => !this.srv.dbs.has(d.db) || !this.withDatabases({ db: d.db, attach: new Map() },
+        () => this.listTables().some((n) => n.toLowerCase() === d.table.toLowerCase())));
+      if (missing.length && !ifExists) throw new SqlError(1051, "Unknown table '" + missing.map((d) => d.table).join(',') + "'");
+      for (const d of drops) {
+        if (missing.includes(d)) continue;
+        this.withDatabases({ db: d.db, attach: new Map() }, () => this.drop(tokenize('DROP TABLE `' + d.table + '`')));
+      }
+      return {};
+    }
+
     mapError(e, sql, toks) {
       const m = String(e && e.message || e);
       let r;
-      if ((r = m.match(/no such table: (?:\w+\.)?(\S+)/))) return new SqlError(1146, "Table '" + this.db + '.' + r[1] + "' doesn't exist");
+      if ((r = m.match(/no such table: (?:(\w+)\.)?(\S+)/))) {
+        const db = r[1] ? (this._attached && this._attached.get(r[1])) || r[1] : this.db;
+        return new SqlError(1146, "Table '" + db + '.' + r[2] + "' doesn't exist");
+      }
       if ((r = m.match(/no such column: (\S+)/))) return new SqlError(1054, "Unknown column '" + r[1] + "' in 'field list'");
       if ((r = m.match(/ambiguous column name: (\S+)/))) return new SqlError(1052, "Column: '" + r[1] + "' in field list is ambiguous");
       if ((r = m.match(/table (\S+) already exists/))) return new SqlError(1050, "Table '" + r[1].replace(/"/g, '') + "' already exists");
@@ -1183,19 +1369,19 @@
     }
 
     // --- metadata ------------------------------------------------------------
-    tableMeta(name, mustExist) {
-      const db = this.database();
+    tableMeta(name, mustExist, dbName) {
+      const db = dbName ? this.srv.dbs.get(dbName) : this.database();
       const r = db.exec('SELECT def FROM __simphp_meta WHERE tbl = ' + sqlStr(name));
       if (r.length && r[0].values.length) return JSON.parse(r[0].values[0][0]);
       // a table created some other way: derive from SQLite
       const info = db.exec('PRAGMA table_info(' + qid(name) + ')');
       if (!info.length) {
-        if (mustExist) throw new SqlError(1146, "Table '" + this.db + '.' + name + "' doesn't exist");
+        if (mustExist) throw new SqlError(1146, "Table '" + (dbName || this.db) + '.' + name + "' doesn't exist");
         return null;
       }
       return {
         name, keys: [], columns: info[0].values.map((v) => {
-          const col = { name: v[1], baseType: /INT/i.test(v[2]) ? 'INT' : /REAL|FLOA|DOUB/i.test(v[2]) ? 'DOUBLE' : 'VARCHAR', length: 255, notNull: !!v[3], def: v[4], key: v[5] ? 'PRI' : '' };
+          const col = { name: v[1], baseType: /INT/i.test(v[2]) ? 'INT' : /REAL|FLOA|DOUB/i.test(v[2]) ? 'DOUBLE' : 'VARCHAR', length: /INT/i.test(v[2]) ? 11 : 255, notNull: !!v[3], def: v[4], key: v[5] ? 'PRI' : '' };
           finishColumn(col);
           return col;
         }),
@@ -1268,10 +1454,11 @@
         // CREATE TABLE t SELECT ...
         const selStart = s.findIndex((t, k) => k >= i && kw(t) === 'SELECT');
         if (selStart < 0) throw new SqlError(1064, "You have an error in your SQL syntax near '" + rawOf(toks).slice(0, 80) + "' at line 1");
-        const selToks = tokenize(rawOf(s.slice(selStart)).replace(/\s+/g, ' '));
+        const selToks = toks.slice(toks.indexOf(s[selStart]));
         db.run('CREATE TABLE ' + qid(name) + ' AS ' + this.translateSelect(selToks).sql);
         this.srv.dirty.add(this.db);
-        return { affected: db.getRowsModified() };
+        const n = db.exec('SELECT count(*) FROM ' + qid(name))[0].values[0][0];
+        return { affected: n, info: 'Records: ' + n + '  Duplicates: 0  Warnings: 0' };
       }
       const e = matchParen(s, i);
       const defs = splitTopLevel(s.slice(i + 1, e)).map((d) => d.filter((t) => !isWs(t))).filter((d) => d.length);
@@ -1571,12 +1758,13 @@
           let n = k + 1;
           if (s[n] && s[n].v === '(') continue;
           if (!s[n] || !(s[n].t === 'id' || s[n].t === 'qid')) continue;
-          let table = identName(s[n]);
-          if (s[n + 1] && s[n + 1].v === '.') { table = identName(s[n + 2]); n += 2; }
+          let table = identName(s[n]), db = null;
+          if (s[n + 1] && s[n + 1].v === '.') { db = identName(s[n]); table = identName(s[n + 2]); n += 2; }
+          if (db !== null) db = (this._attached && this._attached.get(db)) || db;
           let alias = table;
           if (kw(s[n + 1]) === 'AS') alias = identName(s[n + 2]);
           else if (s[n + 1] && (s[n + 1].t === 'id' || s[n + 1].t === 'qid') && !['WHERE', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'JOIN', 'ON', 'USING', 'GROUP', 'ORDER', 'LIMIT', 'HAVING', 'NATURAL', 'CROSS', 'STRAIGHT_JOIN', 'USE', 'IGNORE', 'FORCE'].includes(kw(s[n + 1]))) alias = identName(s[n + 1]);
-          out.push({ table, alias });
+          out.push({ table, alias, db });
         }
       }
       return out;
@@ -1598,7 +1786,7 @@
       // column metadata
       const metas = {};
       for (const t of tables) {
-        try { metas[t.alias.toLowerCase()] = { table: t.table, meta: this.tableMeta(t.table, false) }; } catch (e) {}
+        try { metas[t.alias.toLowerCase()] = { table: t.table, meta: this.tableMeta(t.table, false, t.db) }; } catch (e) {}
       }
       const findCol = (tableAlias, col) => {
         const cands = tableAlias ? [metas[tableAlias.toLowerCase()]] : Object.values(metas);
@@ -1699,7 +1887,9 @@
           } else k++;
         }
       } else if (K === 'SELECT' || (s[i] && s[i].v === '(')) {
-        valuesSql = this.translateSelect(tokenize(rawOf(s.slice(i)).replace(/^\(|\)$/g, ''))).sql;
+        // (keep the whitespace: the select is rendered from these tokens)
+        const sel = s[i].v === '(' ? toks.slice(toks.indexOf(s[i]) + 1, toks.indexOf(s[matchParen(s, i)])) : toks.slice(toks.indexOf(s[i]));
+        valuesSql = this.translateSelect(sel).sql;
       } else throw new SqlError(1064, "You have an error in your SQL syntax near '" + rawOf(s.slice(i)).slice(0, 80) + "' at line 1");
       const allCols = meta.columns.map((c) => c.name);
       const colList = cols || allCols;
