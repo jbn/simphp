@@ -4655,8 +4655,9 @@
     }
     type() { return 'SUM_FUNC_ITEM'; }
     children() { return this.args; }
-    used_tables() { return ALL_TABLES; }
-    const_item() { return false; }
+    // make_const() (opt_sum_query()) turns a COUNT/MIN/MAX into a constant
+    used_tables() { return this.constSum ? 0 : ALL_TABLES; }
+    const_item() { return !!this.constSum; }
     keep_field_type() { return false; }
     fix_length_and_dec() { this.maybe_null = true; this.null_value = true; }
     check_allowed(ctx) {
@@ -5143,6 +5144,9 @@
     real_type() { return this.type(); }
     store_for_compare() { return false; }
     result_type() { return REAL_RESULT; }
+    // the comparison type for index use (dates compare as numbers)
+    cmp_type() { return this.result_type(); }
+    optimize_range() { return true; }
     get_date(t, fuzzy) {
       const r = this.val_str();
       if (str_to_TIME(r, t, fuzzy) === TS_NONE) return true;
@@ -5516,6 +5520,7 @@
   }
   // DATE (Field_newdate), stored as YYYYMMDD
   class Field_newdate extends Field {
+    cmp_type() { return INT_RESULT; }
     type() { return T.DATE; }
     real_type() { return T.NEWDATE; }
     result_type() { return STRING_RESULT; }
@@ -5554,6 +5559,7 @@
     pack_length() { return 3; }
   }
   class Field_time extends Field {
+    cmp_type() { return INT_RESULT; }
     type() { return T.TIME; }
     result_type() { return STRING_RESULT; }
     store_for_compare() { return true; }
@@ -5607,6 +5613,7 @@
     pack_length() { return 3; }
   }
   class Field_datetime extends Field {
+    cmp_type() { return INT_RESULT; }
     type() { return T.DATETIME; }
     result_type() { return STRING_RESULT; }
     store_for_compare() { return true; }
@@ -5708,6 +5715,8 @@
     return 0;
   }
   class Field_enum extends Field {
+    cmp_type() { return INT_RESULT; }
+    optimize_range() { return false; }
     constructor(o, typelib) {
       super(o);
       this.typelib = typelib;
@@ -5902,13 +5911,15 @@
       // table.cc: PRIMARY, else the first unique key without NULL parts
       this.primary_key = this.keys.findIndex((k) => k.name === 'PRIMARY');
       if (this.primary_key < 0) this.primary_key = this.keys.findIndex((k) => (k.flags & (HA_NOSAME | HA_NULL_PART_KEY)) === HA_NOSAME);
-      for (const f of this.fields) { f.flags &= ~(F.PRI_KEY | F.UNIQUE_KEY | F.MULTIPLE_KEY | F.PART_KEY); f.part_of_key = 0; f.part_of_sortkey = 0; }
+      for (const f of this.fields) { f.flags &= ~(F.PRI_KEY | F.UNIQUE_KEY | F.MULTIPLE_KEY | F.PART_KEY); f.part_of_key = 0; f.part_of_sortkey = 0; f.key_start = 0; }
       this.keys.forEach((key, nr) => {
         key.parts.forEach((p, i) => {
           const f = this.fields[p.field];
+          if (i === 0) f.key_start |= 1 << nr;
           if (i === 0 && nr !== this.primary_key) f.flags |= (key.flags & HA_NOSAME) && f.pack_length() === key.key_length ? F.UNIQUE_KEY : F.MULTIPLE_KEY;
           const whole = !p.length || p.length >= f.pack_length();
-          if (whole && f.type() !== T.BLOB && f.result_type() !== STRING_RESULT) f.part_of_key |= 1 << nr;
+          // (ISAM can't read strings from a key: HA_KEY_READ_WRONG_STR)
+          if (whole && f.type() !== T.BLOB && (f.result_type() !== STRING_RESULT || this.options.engine !== 'ISAM')) f.part_of_key |= 1 << nr;
           if (whole && f.type() !== T.BLOB) f.part_of_sortkey |= 1 << nr;
           f.flags |= F.PART_KEY;
           if (nr === this.primary_key) f.flags |= F.PRI_KEY;
@@ -6218,24 +6229,16 @@
         used |= stat[i].t.map;
       }
     }
-    // key uses: field = expression (update_ref_and_keys)
-    const whereConds = conds;
-    const addKeyuse = (cond, allowTable) => {
-      for (const c of splitAnd(cond)) {
-        if (!(c instanceof Item_func_eq || c instanceof Item_func_equal)) continue;
-        for (const [a, b] of [[c.args[0], c.args[1]], [c.args[1], c.args[0]]]) {
-          if (a.type() !== 'FIELD_ITEM') continue;
-          const s = tabs.find((x) => x.t === a.field.table);
-          if (!s || (allowTable && s !== allowTable) || (!allowTable && (outer_join & s.t.map))) continue;
-          if (b.used_tables() & (s.t.map | RAND_TABLE_BIT)) continue;
-          s.share.keys.forEach((k, nr) => k.parts.forEach((p, part) => {
-            if (p.field === a.field.idx && !(k.flags & HA_FULLTEXT)) s.keyuse.push({ key: nr, keypart: part, val: b, used_tables: b.used_tables() });
-          }));
-        }
-      }
-    };
-    addKeyuse(whereConds.length ? whereConds.reduce((x, y) => new Item_cond_and(x, y)) : null, null);
-    for (const s of tabs) if (s.on) addKeyuse(s.on, s);
+    // key uses: field = expression (update_ref_and_keys())
+    for (const s of tabs) { s.keys = 0; s.const_keys = 0; s.key_dependent = 0; s.checked_keys = 0; s.not_exists_optimize = false; }
+    const whereAll = conds.length ? conds.reduce((x, y) => new Item_cond_and(x, y)) : null;
+    const keyuse = updateRefAndKeys(tabs, whereAll, ~outer_join);
+    for (const s of tabs) s.keyuse = keyuse.filter((u) => u.s === s);
+    for (const u of keyuse) {
+      u.s.keys |= 1 << u.key;
+      // key parts compared with constants (skipped when an ORDER BY uses the key)
+      if (!u.used_tables) { u.s.const_key_parts = u.s.const_key_parts || {}; u.s.const_key_parts[u.key] = (u.s.const_key_parts[u.key] || 0) | (1 << u.keypart); }
+    }
     // const tables
     let constMap = 0, constCount = 0;
     const constRows = [];
@@ -6282,11 +6285,17 @@
         s.t.record = row.rec; s.t.null_row = false;
         if (!s.on.val_int()) row = null;
       }
-      if (!row && !(outer_join & s.t.map)) { plan.impossible = true; return plan; }
+      if (!row) {
+        // (EXPLAIN goes on, and says so)
+        s.info = s.type === 'system' ? 'const row not found' : 'unique row not found';
+        s.records_read = 0;
+        if (!(outer_join & s.t.map) && !q.sel.describe) { plan.impossible = true; return plan; }
+      }
       combo[s.t.tablenr] = row;
       s.t.const_table = true;
     }
     plan.constCombo = combo;
+    plan.constTabs = stat.slice(0, constCount);
     setRowIn(tables, combo);
     // conditions on const tables only
     for (const c of conds) {
@@ -6300,14 +6309,22 @@
       for (const f of refs) if (f.table === s.t) used &= f.part_of_key;
       s.used_keys = used;
     }
-    // statistics and range estimates
+    // statistics and range estimates (make_join_statistics(): the tables in
+    // FROM order; the select condition is made for the first one that needs
+    // it, with that table's ON condition, and then reused)
     const rest = stat.slice(constCount);
-    for (const s of rest) {
+    let selCond;
+    for (const s of tabs) {
+      if (s.type === 'system' || s.type === 'const') continue;
       s.found_records = s.records;
       s.read_time = Math.floor(s.share.scan_time());
       s.worst_seeks = Math.max(2, s.read_time * 2);
-      const q2 = quickSelect(q, s, conds, constMap);
-      if (q2) { s.quick = q2; s.found_records = q2.rows.length; s.read_time = Math.floor(q2.read_time); }
+      if (!s.const_keys) continue;
+      if (selCond === undefined) selCond = andConds(whereAll, s.on);
+      const r = testQuickSelect(s, selCond, s.const_keys, constMap, Infinity);
+      s.quick_rows = r.quick_rows; s.quick_key_parts = r.quick_key_parts;
+      if (r.quick) { s.quick = r.quick; s.found_records = r.quick.records; s.read_time = Math.floor(r.quick.read_time); }
+      else if (r.impossible) { s.found_records = 0; s.read_time = 0; s.impossible_range = true; }
     }
     // find_best()
     const best = { read: Infinity, positions: null };
@@ -6350,10 +6367,188 @@
       } else {
         s.type = 'all';
         if (i > 0) { plan.full_join = true; if (!s.on) s.cache = true; }
-        if (!s.quick && s.used_keys) s.index = shortestKey(s.share, s.used_keys);
       }
     });
+    // make_join_select()
+    let used = constMap | RAND_TABLE_BIT;
+    plan.positions.forEach((p, i) => {
+      const s = p.s;
+      used |= s.t.map;
+      // a range on more of the key than the ref uses
+      if (s.type === 'ref' && s.quick && s.quick.key === s.refKey && refKeyLength(s) < s.quick.max_used_key_length) {
+        s.type = 'all'; s.refKey = -1; p.records = s.quick.records;
+      }
+      if (s.type === 'eq_ref' || s.type === 'ref') { if (s.quick && s.quick.key !== s.refKey) s.quick = null; if (s.type === 'eq_ref') s.quick = null; }
+      if ((i === 0 && (s.type === 'eq_ref' || s.type === 'ref')) || s.type === 'all') {
+        if (s.const_keys && s.impossible_range) plan.impossible = true;
+      }
+      if (s.type === 'all' && i === 0 && s.const_keys && THD.select_limit < p.records) {
+        const r = testQuickSelect(s, andConds(whereAll, s.on), s.keys, constMap, THD.select_limit);
+        if (r.quick) s.quick = r.quick;
+      }
+      // make_join_readinfo(): a covering index is read instead of the rows
+      if (s.type === 'all' && !s.quick && s.used_keys) s.index = shortestKey(s.share, s.used_keys);
+    });
     return plan;
+  }
+  // add_key_fields(): the conditions an index can serve
+  const isEqFunc = (c) => c instanceof Item_func_eq || c instanceof Item_func_equal;
+  function selectOptimize(c) {
+    if (c instanceof Item_func_ne || c instanceof Item_func_strcmp || c instanceof Item_func_nullif) return 'NONE';
+    if (c instanceof Item_func_like) {
+      const p = c.args[1];
+      if (p.type() === 'STRING_ITEM' && p.str_value[0] !== '%' && (c.args[0].result_type() !== STRING_RESULT || p.str_value[0] !== '_')) return 'OP';
+      return 'NONE';
+    }
+    if (c instanceof Item_bool_func2) return 'OP';
+    if (c instanceof Item_func_between) return 'KEY';
+    if (c instanceof Item_func_in) return c.args.every((a) => a.const_item()) ? 'KEY' : 'NONE';
+    if (c instanceof Item_func_isnull || c instanceof Item_func_isnotnull) return 'NULL';
+    return 'NONE';
+  }
+  function updateRefAndKeys(tabs, cond, normal_tables) {
+    const kf = [];
+    const st = { and_level: 0 };
+    const tabOf = (f) => tabs.find((x) => x.t === f.table);
+    const addKeyField = (field, eq_func, value, usable_tables) => {
+      const s = tabOf(field);
+      if (!s) return;
+      let exists_optimize = false;
+      const nullValue = value && value.type() === 'NULL_ITEM';
+      if (!(field.flags & F.PART_KEY)) {
+        // don't remove "column IS NULL" on a LEFT JOIN table
+        if (!eq_func || !nullValue || !s.t.maybe_null || field.nullable) return;
+        exists_optimize = true;
+      } else {
+        const used_tables = value ? value.used_tables() : 0;
+        if (value && (used_tables & (s.t.map | RAND_TABLE_BIT))) return;
+        if (!(usable_tables & s.t.map)) {
+          if (!eq_func || !nullValue || !s.t.maybe_null || field.nullable) return;
+          exists_optimize = true;
+        } else {
+          s.keys |= field.key_start;
+          if (!value) { s.const_keys |= field.key_start; return; }      // BETWEEN or IN
+          s.key_dependent |= used_tables;
+          if (value.const_item()) s.const_keys |= field.key_start;
+          // a string index can't serve a comparison with a number
+          if (!eq_func || (field.result_type() === STRING_RESULT && value.result_type() !== STRING_RESULT &&
+            field.cmp_type() !== value.result_type())) return;
+        }
+      }
+      kf.push({ field, s, eq_func, val: value, level: st.and_level, const_level: st.and_level, exists_optimize });
+    };
+    const addKeyFields = (c, usable) => {
+      if (c instanceof Item_cond) {
+        const org = kf.length;
+        if (c instanceof Item_cond_and) {
+          for (const a of c.args) addKeyFields(a, usable);
+          for (let i = org; i < kf.length; i++) {
+            if (kf[i].const_level === kf[i].level) kf[i].const_level = kf[i].level = st.and_level;
+            else kf[i].const_level = st.and_level;
+          }
+        } else {
+          st.and_level++;
+          addKeyFields(c.args[0], usable);
+          for (let i = 1; i < c.args.length; i++) {
+            const start = kf.length;
+            st.and_level++;
+            addKeyFields(c.args[i], usable);
+            kf.length = mergeKeyFields(kf, org, start, kf.length, ++st.and_level);
+          }
+        }
+        return;
+      }
+      if (!(c instanceof Item_func)) return;
+      switch (selectOptimize(c)) {
+        case 'KEY': {
+          const k = c instanceof Item_func_in ? c.item : c.args[0];
+          if (k.type() === 'FIELD_ITEM') addKeyField(k.field, false, null, usable);
+          break;
+        }
+        case 'OP': {
+          const eq = isEqFunc(c);
+          if (c.args[0].type() === 'FIELD_ITEM') addKeyField(c.args[0].field, eq, c.args[1], usable);
+          if (c.args[1].type() === 'FIELD_ITEM' && !(c instanceof Item_func_like)) addKeyField(c.args[1].field, eq, c.args[0], usable);
+          break;
+        }
+        case 'NULL':
+          if (c.args[0].type() === 'FIELD_ITEM') addKeyField(c.args[0].field, c instanceof Item_func_isnull, new Item_null(), usable);
+          break;
+      }
+    };
+    if (cond) addKeyFields(cond, normal_tables);
+    for (const s of tabs) if (s.on) addKeyFields(s.on, s.t.map);
+    // add_key_part()
+    let uses = [];
+    for (const k of kf) {
+      if (k.eq_func && !k.exists_optimize) {
+        k.s.share.keys.forEach((key, nr) => {
+          if (key.flags & HA_FULLTEXT) return;
+          key.parts.forEach((p, part) => {
+            if (p.field === k.field.idx) uses.push({ s: k.s, key: nr, keypart: part, val: k.val, used_tables: k.val.used_tables() });
+          });
+        });
+      }
+      if (k.val.type() === 'NULL_ITEM' && !k.field.real_maybe_null()) k.s.not_exists_optimize = true;
+    }
+    // sort_keyuse(), then drop key parts without the ones before them
+    uses = uses.map((u, i) => ({ u, i })).sort((a, b) => a.u.s.t.tablenr - b.u.s.t.tablenr || a.u.key - b.u.key ||
+      a.u.keypart - b.u.keypart || (a.u.used_tables ? 1 : 0) - (b.u.used_tables ? 1 : 0) || a.i - b.i).map((x) => x.u);
+    const out = [];
+    let prev = null, found_eq_constant = false;
+    for (const use of uses) {
+      if (prev && use.key === prev.key && use.s === prev.s) {
+        if (prev.keypart + 1 < use.keypart || (prev.keypart === use.keypart && found_eq_constant)) continue;
+      } else if (use.keypart !== 0) continue;
+      out.push(use);
+      prev = use;
+      found_eq_constant = !use.used_tables;
+      use.s.checked_keys |= 1 << use.key;
+    }
+    return out;
+  }
+  // merge_key_fields(): what both sides of an OR can use
+  function mergeKeyFields(arr, start, newFields, end, and_level) {
+    if (start === newFields) return start;
+    if (newFields === end) return start;
+    let first_free = newFields;
+    for (let nf = newFields; nf !== end; nf++) {
+      for (let old = start; old !== first_free; old++) {
+        if (arr[old].field !== arr[nf].field) continue;
+        if (arr[nf].val.used_tables()) {
+          if (arr[old].val.eq(arr[nf].val)) {
+            arr[old].level = arr[old].const_level = and_level;
+            arr[old].exists_optimize = arr[old].exists_optimize && arr[nf].exists_optimize;
+          }
+        } else if (arr[old].val.eq(arr[nf].val) && arr[old].eq_func && arr[nf].eq_func) {
+          arr[old].level = arr[old].const_level = and_level;
+          arr[old].exists_optimize = arr[old].exists_optimize && arr[nf].exists_optimize;
+        } else {
+          if (old === --first_free) break;
+          arr[old] = arr[first_free];
+          old--;
+        }
+      }
+    }
+    for (let old = start; old !== first_free;) {
+      if (arr[old].level !== and_level && arr[old].const_level !== and_level) {
+        if (old === --first_free) break;
+        arr[old] = arr[first_free];
+        continue;
+      }
+      old++;
+    }
+    return first_free;
+  }
+  const andConds = (a, b) => (a && b ? new Item_cond_and(a, b) : a || b || null);
+  function refKeyLength(s) {
+    const k = s.share.keys[s.refKey];
+    let len = 0;
+    for (let part = 0; part < k.parts.length && s.refUses.some((u) => u.keypart === part); part++) {
+      const p = k.parts[part], f = s.share.fields[p.field];
+      len += (p.length || f.pack_length()) + (f.nullable ? 1 : 0) + (f.type() === T.BLOB ? 2 : 0);
+    }
+    return len;
   }
   function setRowIn(tables, combo) {
     for (const t of tables) {
@@ -6375,7 +6570,8 @@
       let rec = Math.floor(s.records / MATCHING_ROWS_IN_OTHER_TABLE);
       const byKey = new Map();
       for (const u of s.keyuse) { if (!byKey.has(u.key)) byKey.set(u.key, []); byKey.get(u.key).push(u); }
-      const max_key_length = Math.max(...s.share.keys.map((k) => k.key_length));
+      // (TABLE::max_key_length: the longest key_length + key_parts)
+      const max_key_length = Math.max(...s.share.keys.map((k) => k.key_length + k.parts.length));
       for (const [key, uses] of byKey) {
         const k = s.share.keys[key];
         let found_part = 0, found_ref = 0;
@@ -6398,7 +6594,7 @@
             tmp = prevRecordReads(positions, idx, found_ref);
             recs = 1;
           } else {
-            if (!found_ref) recs = s.quick && s.quick.key === key ? s.quick.rows.length : s.records / rec;
+            if (!found_ref) recs = s.quick_rows && s.quick_rows[key] !== undefined ? s.quick_rows[key] : s.records / rec;
             else {
               recs = s.records / rec * (1 + (max_key_length - k.key_length) / max_key_length);
               if (recs < 2) recs = 2;
@@ -6409,7 +6605,7 @@
         } else if (found_part & 1) {
           max_key_part = 0;
           while (found_part & (1 << max_key_part)) max_key_part++;
-          if (s.quick && s.quick.key === key) tmp = recs = s.quick.rows.length;
+          if (s.quick_rows && s.quick_rows[key] !== undefined && s.quick_key_parts[key] <= max_key_part) tmp = recs = s.quick_rows[key];
           else {
             let rpk = s.records / rec + 1;
             if (!s.records) tmp = 0;
@@ -6449,68 +6645,6 @@
   }
   // range conditions on the first part of a key (opt_range.cc, simplified):
   // the rows in range, in key order, when the range is cheaper than a scan
-  function quickSelect(q, s, conds, constMap) {
-    const t = s.t, share = s.share;
-    const cands = [];
-    const all = conds.concat(s.on ? splitAnd(s.on) : []);
-    const isConst = (it) => !(it.used_tables() & ~constMap) && !(it.used_tables() & RAND_TABLE_BIT);
-    const colOf = (it) => (it.type() === 'FIELD_ITEM' && it.field.table === t ? it.field : null);
-    for (const c of all) {
-      let f = null;
-      if (c instanceof Item_bool_func2 && !(c instanceof Item_func_ne) && !(c instanceof Item_func_strcmp) && !(c instanceof Item_func_nullif)) {
-        if (c instanceof Item_func_like) {
-          if (colOf(c.args[0]) && isConst(c.args[1]) && c.args[0].field.result_type() === STRING_RESULT) {
-            const pat = c.args[1].val_str();
-            if (pat !== null && pat.length && pat[0] !== '%' && pat[0] !== '_') f = c.args[0].field;
-          }
-        } else if (colOf(c.args[0]) && isConst(c.args[1])) f = c.args[0].field;
-        else if (colOf(c.args[1]) && isConst(c.args[0])) f = c.args[1].field;
-      } else if (c instanceof Item_func_between && colOf(c.args[0]) && isConst(c.args[1]) && isConst(c.args[2])) f = c.args[0].field;
-      else if (c instanceof Item_func_in && colOf(c.item) && c.args.every(isConst)) f = c.item.field;
-      else if (c instanceof Item_func_isnull && colOf(c.args[0])) f = c.args[0].field;
-      if (f) cands.push({ c, f });
-    }
-    if (!cands.length) return null;
-    const records = Math.max(1, s.records);
-    const scan_time = records / TIME_FOR_COMPARE + 1;
-    let read_time = share.scan_time() + scan_time + 1;
-    if (THD.select_limit < records) read_time = records + scan_time + 1;
-    let best = null;
-    share.keys.forEach((k, nr) => {
-      if (k.flags & HA_FULLTEXT) return;
-      const f0 = k.parts[0].field;
-      const mine = cands.filter((x) => x.f.idx === f0);
-      if (!mine.length) return;
-      const rows = [];
-      const save = t.record, saveNull = t.null_row;
-      for (const r of share.scan()) {
-        t.record = r.rec; t.null_row = false;
-        if (mine.every((x) => x.c instanceof Item_func_like ? likePrefix(x.c, t.fields[f0]) : x.c.val_int())) rows.push(r);
-      }
-      t.record = save; t.null_row = saveNull;
-      const found = rows.length;
-      let frt;
-      if (found > 2 && (s.used_keys & (1 << nr))) {
-        const kpb = Math.floor(1024 / 2 / (k.key_length + 4)) + 1;
-        frt = (found + kpb - 1) / kpb;
-      } else frt = found + found / TIME_FOR_COMPARE;
-      if (frt < read_time) { read_time = frt; best = { key: nr, rows, read_time: frt }; }
-    });
-    if (best) best.rows = sortByKey(share, t, best.key, best.rows);
-    return best;
-  }
-  function likePrefix(c, field) {
-    const pat = c.args[1].val_str();
-    let prefix = '';
-    for (let i = 0; i < pat.length; i++) {
-      if (pat[i] === '%' || pat[i] === '_') break;
-      if (pat[i] === c.escape && i + 1 < pat.length) i++;
-      prefix += pat[i];
-    }
-    if (field.is_null()) return false;
-    const v = field.val_str().slice(0, prefix.length);
-    return (field.binary() ? stringcmp(v, prefix) : sortcmp(v, prefix)) === 0;
-  }
   // rows in the order of a key (the key value, then the row position)
   function sortByKey(share, t, key, rows) {
     const k = share.keys[key];
@@ -6538,13 +6672,16 @@
       THD.no_errors = true;
       try {
         f.set_notnull();
-        if (u.val.save_in_field(f) || u.val.null_value) { THD.no_errors = false; return first ? null : []; }
+        // (a NULL goes into a nullable key part and finds the NULL keys)
+        if (u.val.save_in_field(f)) { THD.no_errors = false; return first ? null : []; }
       } finally { THD.no_errors = false; }
-      want.push({ idx: f.idx, norm: keyNorm(f, probe.record[f.idx], k.parts[part].length) });
+      const v = probe.record[f.idx];
+      want.push({ idx: f.idx, norm: v === null ? null : keyNorm(f, v, k.parts[part].length) });
     }
     const out = [];
     for (const r of s.share.scan()) {
-      if (want.every((w) => r.rec[w.idx] !== null && keyNorm(t.fields[w.idx], r.rec[w.idx], k.parts[want.indexOf(w)].length) === w.norm)) {
+      if (want.every((w) => (w.norm === null ? r.rec[w.idx] === null : r.rec[w.idx] !== null &&
+        keyNorm(t.fields[w.idx], r.rec[w.idx], k.parts[want.indexOf(w)].length) === w.norm))) {
         if (first) return r;
         out.push(r);
       }
@@ -6585,14 +6722,18 @@
       if (o.item.type() !== 'FIELD_ITEM') return false;
       usable &= o.item.field.part_of_sortkey;
     }
+    // test_if_order_by_key(): key parts compared with constants are skipped
     const orderByKey = (nr) => {
       const k = s.share.keys[nr];
-      let rev = 0;
-      for (let i = 0; i < list.length; i++) {
-        if (i >= k.parts.length || k.parts[i].field !== list[i].item.field.idx) return 0;
+      let const_parts = (s.const_key_parts && s.const_key_parts[nr]) || 0;
+      let rev = 0, part = 0;
+      for (let i = 0; i < list.length; i++, const_parts >>= 1) {
+        while (const_parts & 1) { part++; const_parts >>= 1; }
+        if (part >= k.parts.length || k.parts[part].field !== list[i].item.field.idx) return 0;
         const flag = list[i].asc ? 1 : -1;
         if (rev && flag !== rev) return 0;
         rev = flag;
+        part++;
       }
       return rev;
     };
@@ -6684,6 +6825,447 @@
       if (!ok(ready().concat(conds.filter((c) => !done.has(c))))) combos = [];
     }
     return combos;
+  }
+
+  // ---------------------------------------------------------------------------
+  // The range optimizer (sql/opt_range.cc): a condition becomes, per key, a
+  // set of intervals on its first part, each with the intervals of the next
+  // part (SEL_ARG); MyISAM estimates the rows in each (mi_records_in_range());
+  // the cheapest key is read range by range, in key order (QUICK_SELECT)
+  // ---------------------------------------------------------------------------
+  const IMPOSSIBLE = { impossible: true };
+  // an interval: min/max are stored key values (null is SQL NULL, the
+  // smallest); noMin/noMax for open ends; minNear/maxNear exclude the end
+  const iv = (o) => Object.assign({ min: undefined, max: undefined, noMin: false, noMax: false, minNear: false, maxNear: false, next: null }, o);
+
+  // a key part's order: NULL first, then the field's comparison (on the
+  // part's prefix)
+  function partCmp(f, len, a, b) {
+    if (a === null || b === null) return a === b ? 0 : a === null ? -1 : 1;
+    if (len && typeof a === 'string' && typeof b === 'string') { a = a.slice(0, len); b = b.slice(0, len); }
+    return valCmp(f, a, b);
+  }
+  // SEL_ARG trees: { part, f, len, ivs: [intervals in order] } or IMPOSSIBLE
+  function keyAnd(a, b) {
+    if (!a) return b;
+    if (!b) return a;
+    if (a === IMPOSSIBLE || b === IMPOSSIBLE) return IMPOSSIBLE;
+    if (a.part > b.part) [a, b] = [b, a];
+    if (a.part < b.part) {
+      const ivs = [];
+      for (const x of a.ivs) {
+        const next = keyAnd(x.next, b);
+        if (next !== IMPOSSIBLE) ivs.push(Object.assign({}, x, { next }));
+      }
+      return ivs.length ? Object.assign({}, a, { ivs }) : IMPOSSIBLE;
+    }
+    const out = [];
+    for (const x of a.ivs) {
+      for (const y of b.ivs) {
+        const r = intersect(a, x, y);
+        if (!r) continue;
+        r.next = keyAnd(x.next, y.next);
+        if (r.next !== IMPOSSIBLE) out.push(r);
+      }
+    }
+    return out.length ? Object.assign({}, a, { ivs: out.sort((p, q) => lowCmp(a, p, q)) }) : IMPOSSIBLE;
+  }
+  // compare interval starts / ends
+  function lowCmp(k, p, q) {
+    if (p.noMin || q.noMin) return p.noMin === q.noMin ? 0 : p.noMin ? -1 : 1;
+    const c = partCmp(k.f, k.len, p.min, q.min);
+    return c || (p.minNear === q.minNear ? 0 : p.minNear ? 1 : -1);
+  }
+  function highCmp(k, p, q) {
+    if (p.noMax || q.noMax) return p.noMax === q.noMax ? 0 : p.noMax ? 1 : -1;
+    const c = partCmp(k.f, k.len, p.max, q.max);
+    return c || (p.maxNear === q.maxNear ? 0 : p.maxNear ? -1 : 1);
+  }
+  function intersect(k, x, y) {
+    const lo = lowCmp(k, x, y) >= 0 ? x : y, hi = highCmp(k, x, y) <= 0 ? x : y;
+    const r = iv({ min: lo.min, noMin: lo.noMin, minNear: lo.minNear, max: hi.max, noMax: hi.noMax, maxNear: hi.maxNear });
+    return emptyInterval(k, r) ? null : r;
+  }
+  function emptyInterval(k, r) {
+    if (r.noMin || r.noMax) return false;
+    const c = partCmp(k.f, k.len, r.min, r.max);
+    return c > 0 || (c === 0 && (r.minNear || r.maxNear));
+  }
+  function sameTree(a, b) {
+    if (a === b) return true;
+    if (!a || !b || a === IMPOSSIBLE || b === IMPOSSIBLE || a.part !== b.part || a.ivs.length !== b.ivs.length) return false;
+    return a.ivs.every((x, i) => {
+      const y = b.ivs[i];
+      return lowCmp(a, x, y) === 0 && highCmp(a, x, y) === 0 && sameTree(x.next, y.next);
+    });
+  }
+  // key_or(): the union, split where the next parts differ
+  function keyOr(a, b) {
+    if (!a || !b) return null;
+    if (a === IMPOSSIBLE) return b;
+    if (b === IMPOSSIBLE) return a;
+    if (a.part !== b.part) return null;
+    // the elementary pieces between the interval ends
+    const pts = [];
+    for (const x of [...a.ivs, ...b.ivs]) { if (!x.noMin) pts.push(x.min); if (!x.noMax) pts.push(x.max); }
+    pts.sort((p, q) => partCmp(a.f, a.len, p, q));
+    const uniq = pts.filter((p, i) => i === 0 || partCmp(a.f, a.len, p, pts[i - 1]) !== 0);
+    const atoms = [];
+    atoms.push({ lo: null, hi: uniq.length ? uniq[0] : null, point: false, loInf: true, hiInf: !uniq.length });
+    uniq.forEach((p, i) => {
+      atoms.push({ point: true, v: p });
+      atoms.push({ lo: p, hi: i + 1 < uniq.length ? uniq[i + 1] : null, point: false, loInf: false, hiInf: i + 1 >= uniq.length });
+    });
+    const covers = (x, at) => {
+      if (at.point) {
+        const lo = x.noMin || partCmp(a.f, a.len, at.v, x.min) > 0 || (partCmp(a.f, a.len, at.v, x.min) === 0 && !x.minNear);
+        const hi = x.noMax || partCmp(a.f, a.len, at.v, x.max) < 0 || (partCmp(a.f, a.len, at.v, x.max) === 0 && !x.maxNear);
+        return lo && hi;
+      }
+      const lo = x.noMin || (!at.loInf && partCmp(a.f, a.len, x.min, at.lo) <= 0);
+      const hi = x.noMax || (!at.hiInf && partCmp(a.f, a.len, x.max, at.hi) >= 0);
+      return lo && hi;
+    };
+    const pieces = [];
+    for (const at of atoms) {
+      const xa = a.ivs.find((x) => covers(x, at)), xb = b.ivs.find((x) => covers(x, at));
+      if (!xa && !xb) { pieces.push(null); continue; }
+      const next = xa && xb ? keyOr(xa.next, xb.next) : (xa || xb).next;
+      pieces.push({ at, next });
+    }
+    // join neighbouring pieces with the same next part
+    const ivs = [];
+    let cur = null;
+    for (const p of pieces) {
+      if (!p) { cur = null; continue; }
+      if (cur && sameTree(cur.next, p.next)) {
+        if (p.at.point) { cur.max = p.at.v; cur.maxNear = false; cur.noMax = false; }
+        else if (p.at.hiInf) { cur.noMax = true; cur.max = undefined; }
+        else { cur.max = p.at.hi; cur.maxNear = true; }
+        continue;
+      }
+      if (p.at.point) cur = iv({ min: p.at.v, max: p.at.v, next: p.next });
+      else cur = iv({ min: p.at.lo, noMin: p.at.loInf, minNear: !p.at.loInf, max: p.at.hi, noMax: p.at.hiInf, maxNear: !p.at.hiInf, next: p.next });
+      ivs.push(cur);
+    }
+    return ivs.length ? Object.assign({}, a, { ivs }) : IMPOSSIBLE;
+  }
+  // SEL_TREE: null is "can't use", ALWAYS, IMPOSSIBLE, or { keys: Map(nr -> SEL_ARG) }
+  const ALWAYS = { always: true };
+  function treeAnd(t1, t2) {
+    if (!t1) return t2;
+    if (!t2) return t1;
+    if (t1 === IMPOSSIBLE || t2 === ALWAYS) return t1;
+    if (t2 === IMPOSSIBLE || t1 === ALWAYS) return t2;
+    const keys = new Map(t1.keys);
+    for (const [nr, k] of t2.keys) {
+      const r = keyAnd(keys.get(nr) || null, k);
+      if (r === IMPOSSIBLE) return IMPOSSIBLE;
+      keys.set(nr, r);
+    }
+    return { keys };
+  }
+  function treeOr(t1, t2) {
+    if (!t1 || !t2) return null;
+    if (t1 === IMPOSSIBLE || t2 === ALWAYS) return t2;
+    if (t2 === IMPOSSIBLE || t1 === ALWAYS) return t1;
+    const keys = new Map();
+    for (const [nr, k] of t1.keys) {
+      if (!t2.keys.has(nr)) continue;
+      const r = keyOr(k, t2.keys.get(nr));
+      if (r) keys.set(nr, r);
+    }
+    return keys.size ? { keys } : null;
+  }
+
+  class RangeParam {
+    constructor(s, keys, prev_tables) {
+      this.s = s; this.t = s.t; this.share = s.share; this.keys = keys; this.prev_tables = prev_tables;
+    }
+    // get_mm_tree()
+    tree(cond) {
+      if (cond instanceof Item_cond_and) {
+        let tree = null;
+        for (const a of cond.args) {
+          tree = treeAnd(tree, this.tree(a));
+          if (tree === IMPOSSIBLE) break;
+        }
+        return tree;
+      }
+      if (cond instanceof Item_cond_or) {
+        let tree = this.tree(cond.args[0]);
+        if (!tree) return null;
+        for (let i = 1; i < cond.args.length; i++) {
+          const t2 = this.tree(cond.args[i]);
+          if (!t2) return null;
+          tree = treeOr(tree, t2);
+          if (!tree) return null;
+        }
+        return tree;
+      }
+      if (cond.const_item()) return cond.val_int() ? ALWAYS : IMPOSSIBLE;
+      const ut = cond.used_tables();
+      if (ut & ~(this.prev_tables | this.t.map)) return null;
+      if (!(cond instanceof Item_func) || selectOptimize(cond) === 'NONE') return null;
+      if (cond instanceof Item_func_between) {
+        if (cond.args[0].type() !== 'FIELD_ITEM') return null;
+        const f = cond.args[0].field;
+        let tree = this.parts(f, 'GE', cond.args[1]);
+        if (tree) tree = treeAnd(tree, this.parts(f, 'LE', cond.args[2]));
+        return tree;
+      }
+      if (cond instanceof Item_func_in) {
+        if (cond.item.type() !== 'FIELD_ITEM') return null;
+        const f = cond.item.field;
+        let tree = this.parts(f, 'EQ', cond.args[0]);
+        if (!tree) return null;
+        for (let i = 1; i < cond.args.length; i++) tree = treeOr(tree, this.parts(f, 'EQ', cond.args[i]));
+        return tree;
+      }
+      const type = cond instanceof Item_func_isnull ? 'ISNULL' : cond instanceof Item_func_isnotnull ? 'ISNOTNULL' :
+        cond instanceof Item_func_like ? 'LIKE' : cond instanceof Item_func_equal ? 'EQUAL' : cond instanceof Item_func_eq ? 'EQ' :
+        cond instanceof Item_func_lt ? 'LT' : cond instanceof Item_func_le ? 'LE' : cond instanceof Item_func_gt ? 'GT' :
+        cond instanceof Item_func_ge ? 'GE' : null;
+      if (!type) return null;
+      if (cond.args[0].type() === 'FIELD_ITEM') return this.parts(cond.args[0].field, type, cond.args.length > 1 ? cond.args[1] : null, cond);
+      // the reversed comparison (have_rev_func())
+      const REV = { EQ: 'EQ', EQUAL: 'EQUAL', LT: 'GT', LE: 'GE', GT: 'LT', GE: 'LE' };
+      if (REV[type] && cond.args[1].type() === 'FIELD_ITEM') return this.parts(cond.args[1].field, REV[type], cond.args[0], cond);
+      return null;
+    }
+    // get_mm_parts(): the field's intervals in each key that has it
+    parts(field, type, value, cond) {
+      if (field.table !== this.t) return null;
+      if (value && (value.used_tables() & ~this.prev_tables)) return null;
+      let tree = null;
+      for (const nr of this.keys) {
+        const k = this.share.keys[nr];
+        k.parts.forEach((p, part) => {
+          if (p.field !== field.idx) return;
+          if (!tree) tree = { keys: new Map() };
+          if (tree === IMPOSSIBLE) return;
+          const leaf = this.leaf(field, p, part, type, value, cond);
+          if (!leaf) return;
+          if (leaf === IMPOSSIBLE) { tree = IMPOSSIBLE; return; }
+          tree.keys.set(nr, keyAnd(tree.keys.get(nr) || null, leaf));
+        });
+        if (tree === IMPOSSIBLE) return tree;
+      }
+      return tree && tree.keys.size ? tree : tree === IMPOSSIBLE ? tree : null;
+    }
+    // get_mm_leaf()
+    leaf(field, p, part, type, value, cond) {
+      const f = this.share.fields[field.idx];
+      const mk = (ivs) => ({ part, f, len: p.length || 0, ivs });
+      const maybe_null = f.nullable;
+      if (type === 'LIKE') {
+        if (!f.optimize_range()) return null;
+        const res = value.val_str();
+        if (res === null) return IMPOSSIBLE;
+        if (f.cmp_type() !== STRING_RESULT) return null;
+        const len = p.length || f.field_length;
+        const esc = cond.escape || '\\';
+        let min = '', max = '';
+        for (let i = 0; i < res.length && min.length < len; i++) {
+          const c = res[i];
+          if (c === esc && i + 1 < res.length) { i++; min += res[i]; max += res[i]; continue; }
+          if (c === '_') { min += '\0'; max += '\xff'; continue; }
+          if (c === '%') { max += '\xff'.repeat(len - max.length); return mk([iv({ min, max })]); }
+          min += c; max += c;
+        }
+        min = min.replace(/\0+$/, (m) => ' '.repeat(m.length));
+        return mk([iv({ min, max })]);
+      }
+      if (!value) {
+        // IS NULL / IS NOT NULL
+        if (this.t.maybe_null) return null;
+        if (!maybe_null) return type === 'ISNULL' ? IMPOSSIBLE : null;
+        if (type === 'ISNULL') return mk([iv({ min: null, max: null })]);
+        return mk([iv({ min: null, minNear: true, noMax: true })]);
+      }
+      if (!f.optimize_range() && type !== 'EQ' && type !== 'EQUAL') return null;
+      if (f.result_type() === STRING_RESULT && value.result_type() !== STRING_RESULT && f.cmp_type() !== value.result_type()) return null;
+      // the value as the column stores it
+      const probe = new TableInst(this.share, this.t.alias);
+      const pf = probe.fields[field.idx];
+      const saveNe = THD.no_errors, saveCount = THD.count_cuted_fields;
+      THD.no_errors = true;
+      THD.count_cuted_fields = false;
+      let err;
+      try { pf.set_notnull(); err = value.save_in_field(pf); } finally { THD.no_errors = saveNe; THD.count_cuted_fields = saveCount; }
+      if (err) {
+        if (type === 'EQUAL') return mk([iv({ min: null, max: null })]);
+        return IMPOSSIBLE;
+      }
+      const v = probe.record[field.idx];
+      switch (type) {
+        case 'EQ': case 'EQUAL': return mk([iv({ min: v, max: v })]);
+        case 'LT': case 'LE': {
+          const r = iv({ max: v, maxNear: type === 'LT' && fieldIsEqualToItem(pf, value) });
+          if (!maybe_null) r.noMin = true; else { r.min = null; r.minNear = true; }
+          return mk([r]);
+        }
+        case 'GT': case 'GE':
+          return mk([iv({ min: v, minNear: type === 'GT' && fieldIsEqualToItem(pf, value), noMax: true })]);
+      }
+      return null;
+    }
+  }
+  // field_is_equal_to_item(): did storing the value keep it exact?
+  function fieldIsEqualToItem(field, item) {
+    const rt = item_cmp_type(field.result_type(), item.result_type());
+    if (rt === STRING_RESULT) {
+      const r = item.val_str();
+      if (item.null_value) return true;
+      return stringcmp(field.val_str(), r) === 0;
+    }
+    if (rt === INT_RESULT) return true;
+    const d = item.val();
+    if (item.null_value) return true;
+    return d === field.val_real();
+  }
+
+  // mi_records_in_range() on one index page: the index is the rows in key
+  // order (NULLs first); a search finds the first entry not before the key
+  // (SEARCH_FIND, SEARCH_SMALLER) or after it (SEARCH_BIGGER); its position
+  // is (entries before + 1) / (entries + 1), or (entries + 0.5) / (entries + 1)
+  // past the end
+  function recordsInRange(share, nr, index, min, minAfter, max, maxBefore) {
+    const k = share.keys[nr];
+    const n = index.length, records = share.rows;
+    const prefixCmp = (rec, key) => {
+      for (let i = 0; i < key.length; i++) {
+        const p = k.parts[i];
+        const c = partCmp(share.fields[p.field], p.length || 0, rec[p.field], key[i]);
+        if (c) return c;
+      }
+      return 0;
+    };
+    const pos = (key, after) => {
+      if (!n) return Math.floor(0.5 * records + 0.5);
+      let i = 0;
+      while (i < n && (after ? prefixCmp(index[i].rec, key) <= 0 : prefixCmp(index[i].rec, key) < 0)) i++;
+      const offset = i < n ? 1.0 : 0.5;
+      return Math.floor((i + offset) / (n + 1) * records + 0.5);
+    };
+    const start = min ? pos(min, minAfter) : 0;
+    const end = max ? pos(max, !maxBefore) : records + 1;
+    return end < start ? 0 : end === start ? 1 : end - start;
+  }
+  // check_quick_keys(): the estimated rows of a key's intervals
+  function checkQuickKeys(share, nr, index, tree, minKey, minFlag, maxKey, maxFlag, st) {
+    const k = share.keys[nr];
+    let records = 0;
+    for (const x of tree.ivs) {
+      st.max_key_part = Math.max(st.max_key_part, tree.part);
+      // SEL_ARG::store(): the ends go into the key unless an earlier part ended it
+      const tmpMin = minKey.slice(), tmpMax = maxKey.slice();
+      if (!x.noMin && !(minFlag & (NO_MIN_RANGE | NEAR_MIN))) tmpMin.push(x.min);
+      if (!x.noMax && !(maxFlag & (NO_MAX_RANGE | NEAR_MAX))) tmpMax.push(x.max);
+      const xMinFlag = (x.noMin ? NO_MIN_RANGE : 0) | (x.minNear ? NEAR_MIN : 0);
+      const xMaxFlag = (x.noMax ? NO_MAX_RANGE : 0) | (x.maxNear ? NEAR_MAX : 0);
+      let tmp, tmpMinFlag, tmpMaxFlag;
+      if (x.next && x.next !== IMPOSSIBLE && x.next.part === tree.part + 1) {
+        const point = tmpMin.length === tmpMax.length && tmpMin.every((v, i) => partCmp(share.fields[k.parts[i].field], k.parts[i].length || 0, v, tmpMax[i]) === 0);
+        if (point && !xMinFlag && !xMaxFlag) {
+          records += checkQuickKeys(share, nr, index, x.next, tmpMin, minFlag | xMinFlag, tmpMax, maxFlag | xMaxFlag, st);
+          continue;
+        }
+        tmpMinFlag = xMinFlag; tmpMaxFlag = xMaxFlag;
+        if (!tmpMinFlag) tmpMinFlag = storeEnd(x.next, tmpMin, true);
+        if (!tmpMaxFlag) tmpMaxFlag = storeEnd(x.next, tmpMax, false);
+      } else {
+        tmpMinFlag = minFlag | xMinFlag;
+        tmpMaxFlag = maxFlag | xMaxFlag;
+      }
+      if (!tmpMinFlag && !tmpMaxFlag && tree.part + 1 === k.parts.length && (k.flags & HA_NOSAME) && tmpMin.length === tmpMax.length &&
+        tmpMin.every((v, i) => partCmp(share.fields[k.parts[i].field], k.parts[i].length || 0, v, tmpMax[i]) === 0)) tmp = 1;
+      else tmp = recordsInRange(share, nr, index, tmpMin.length ? tmpMin : null, !!(tmpMinFlag & NEAR_MIN), tmpMax.length ? tmpMax : null, !!(tmpMaxFlag & NEAR_MAX));
+      records += tmp;
+    }
+    return records;
+  }
+  const NEAR_MIN = 1, NEAR_MAX = 2, NO_MIN_RANGE = 4, NO_MAX_RANGE = 8;
+  // store_min_key()/store_max_key(): extend the key with the first (last)
+  // interval of the following parts
+  function storeEnd(tree, key, isMin) {
+    let t = tree;
+    for (;;) {
+      const x = isMin ? t.ivs[0] : t.ivs[t.ivs.length - 1];
+      if (isMin ? x.noMin : x.noMax) return isMin ? NO_MIN_RANGE : NO_MAX_RANGE;
+      key.push(isMin ? x.min : x.max);
+      const flag = isMin ? (x.minNear ? NEAR_MIN : 0) : (x.maxNear ? NEAR_MAX : 0);
+      if (flag) return flag;
+      if (!x.next || x.next === IMPOSSIBLE || x.next.part !== t.part + 1) return 0;
+      t = x.next;
+    }
+  }
+  // is the row's key inside the tree's intervals?
+  function inTree(share, tree, rec) {
+    const v = rec[tree.f.idx];
+    for (const x of tree.ivs) {
+      const lo = x.noMin || partCmp(tree.f, tree.len, v, x.min) > 0 || (partCmp(tree.f, tree.len, v, x.min) === 0 && !x.minNear);
+      const hi = x.noMax || partCmp(tree.f, tree.len, v, x.max) < 0 || (partCmp(tree.f, tree.len, v, x.max) === 0 && !x.maxNear);
+      if (lo && hi && (!x.next || inTree(share, x.next, rec))) return true;
+    }
+    return false;
+  }
+
+  // SQL_SELECT::test_quick_select() for table s with the keys keys_to_use:
+  // { quick: { key, rows, records, read_time } | null, impossible, records }
+  function testQuickSelect(s, cond, keys_to_use, prev_tables, limit) {
+    const share = s.share;
+    const res = { quick: null, impossible: false, records: share.rows, quick_rows: {}, quick_key_parts: {} };
+    if (!cond || !limit || !keys_to_use) return res;
+    let records = share.rows || 1;
+    const scan_time = records / TIME_FOR_COMPARE + 1;
+    let read_time = share.scan_time() + scan_time + 1;
+    if (limit < records) read_time = records + scan_time + 1;
+    else if (read_time <= 2.0) return res;
+    const keys = [];
+    share.keys.forEach((k, nr) => { if ((keys_to_use & (1 << nr)) && !(k.flags & HA_FULLTEXT)) keys.push(nr); });
+    const tree = new RangeParam(s, keys, prev_tables).tree(cond);
+    let best = null;
+    if (tree === IMPOSSIBLE) { records = 0; read_time = Infinity; }
+    else if (tree && tree.keys) {
+      for (const nr of keys) {
+        const k = tree.keys.get(nr);
+        if (!k) continue;
+        let found;
+        if (k === IMPOSSIBLE) found = 0;
+        else if (k.part !== 0) continue;
+        else {
+          const index = sortByKey(share, s.t, nr, [...share.scan()]);
+          const st = { max_key_part: 0 };
+          found = checkQuickKeys(share, nr, index, k, [], 0, [], 0, st);
+          res.quick_rows[nr] = found;
+          res.quick_key_parts[nr] = st.max_key_part + 1;
+        }
+        let frt;
+        if (found > 2 && (s.used_keys & (1 << nr))) {
+          const kpb = Math.floor(1024 / 2 / (share.keys[nr].key_length + 4)) + 1;
+          frt = (found + kpb - 1) / kpb;
+        } else frt = found + found / TIME_FOR_COMPARE;
+        if (read_time > frt) { read_time = frt; records = found; best = { nr, k }; }
+      }
+      if (best && records) {
+        // get_quick_select(): the rows of the ranges, in key order
+        const rows = sortByKey(share, s.t, best.nr, [...share.scan()].filter((r) => best.k !== IMPOSSIBLE && inTree(share, best.k, r.rec)));
+        res.quick = { key: best.nr, rows, records, read_time, max_used_key_length: usedKeyLength(share, best.nr, res.quick_key_parts[best.nr]) };
+      }
+    }
+    res.records = records;
+    res.impossible = !records;
+    return res;
+  }
+  function usedKeyLength(share, nr, parts) {
+    const k = share.keys[nr];
+    let len = 0;
+    for (let i = 0; i < parts && i < k.parts.length; i++) {
+      const p = k.parts[i], f = share.fields[p.field];
+      len += (p.length || f.pack_length()) + (f.nullable ? 1 : 0) + (f.type() === T.BLOB ? 2 : 0);
+    }
+    return len;
   }
 
   // ---------------------------------------------------------------------------
@@ -6966,8 +7548,8 @@
     run() {
       const conn = this.conn, sel = this.sel;
       const tables = this.tables;
-      THD.select_limit = sel.limit === null ? Infinity : sel.limit;
-      const limit = THD.select_limit, offset = sel.offset || 0;
+      const limit = sel.limit === null ? Infinity : sel.limit, offset = sel.offset || 0;
+      THD.select_limit = limit === Infinity ? Infinity : limit + offset;
       let distinct = !!sel.options.distinct;
       let group = this.group.slice(), order = this.order.slice();
       const hasSum = this.sums.length > 0;
@@ -6975,14 +7557,27 @@
       const conds = splitAnd(sel.where);
       let impossible = false;
       for (const c of conds) if (c.const_item() && !(c.used_tables() & RAND_TABLE_BIT)) { if (!c.val_int()) impossible = true; }
-      if (impossible || limit === 0) return this.zeroRows(hasSum && !group.length);
+      const describe = !!sel.describe;
+      if (impossible || limit === 0) return describe ? describeInfo('Impossible WHERE') : this.zeroRows(hasSum && !group.length);
+      // opt_sum_query(): COUNT(*), MIN() and MAX() from table sizes and indexes
+      if (tables.length && hasSum && !sel.group.length) {
+        const r = this.optSumQuery(conds.filter((c) => !(c.const_item() && !(c.used_tables() & RAND_TABLE_BIT))));
+        if (r < 0) return describe ? describeInfo('No matching min/max row') : this.zeroRows(true);
+        if (r > 0) {
+          if (describe) return describeInfo('Select tables optimized away');
+          const row = this.items.map((it) => cellOf(it, null));
+          if (this.having && !this.having.val_int()) return { fields: this.fieldsOf(null), rows: [] };
+          return { fields: this.fieldsOf(null), rows: [row] };
+        }
+      }
       if (!tables.length) {
+        if (describe) return describeInfo('No tables used');
         const row = this.items.map((it) => cellOf(it, null));
         if (this.having && !this.having.val_int()) return { fields: this.fieldsOf(null), rows: [] };
         return { fields: this.fieldsOf(null), rows: [row] };
       }
       const plan = this.plan = planJoin(this, conds);
-      if (plan.impossible) return this.zeroRows(hasSum && !group.length);
+      if (plan.impossible) return describe ? describeInfo('Impossible WHERE noticed after reading const tables') : this.zeroRows(hasSum && !group.length);
       const nonConst = plan.order;
       // remove_const() for ORDER BY and GROUP BY
       const constMap = plan.constMap;
@@ -7031,6 +7626,14 @@
         need_tmp = true; simple_order = simple_group = false;
       }
       const grouped = group.length > 0 || hadGroup || hasSum;
+      if (describe) {
+        // mysql_select() with SELECT_DESCRIBE: is a sort still needed?
+        let ord = order, ordIsGroup = false;
+        if (!ord.length && !no_order) { ord = group; ordIsGroup = true; }
+        if (ord.length && (!nonConst.length || (simple_order &&
+          skipSortOrder(plan, first, ord, group.length || limit === Infinity ? Infinity : limit + offset)))) ord = [];
+        return this.describe(plan, need_tmp, ord.length > 0 && (!need_tmp || !ordIsGroup || simple_group), distinct);
+      }
       // create_sort_index() without a temporary table: the first table is read
       // in the order (by an index, or filesort), and the select list is
       // evaluated for each row sent (end_send), up to the LIMIT
@@ -7069,6 +7672,98 @@
       if (order.length) outRows = this.sortRows(outRows, order);
       if (offset || limit !== Infinity) outRows = outRows.slice(offset, limit === Infinity ? undefined : offset + limit);
       return { fields: this.fieldsOf(this.tmpMode), rows: outRows.map((r) => r.cells) };
+    }
+    // opt_sum_query(): 1 when every column is a constant now, -1 when an
+    // index says there is no row, 0 when the tables must be read
+    optSumQuery(conds) {
+      // (each COUNT/MIN/MAX it can do becomes a constant as it goes, and stays
+      // one even when the query still has to read the tables)
+      let const_result = 1, removed = 0;
+      const cond = conds.length ? conds.reduce((x, y) => new Item_cond_and(x, y)) : null;
+      for (const item of this.all) {
+        if (item.type() === 'SUM_FUNC_ITEM') {
+          const fn = item.func_name();
+          if (fn === 'count') {
+            if (!cond && !item.args[0].maybe_null && !this.tables.some((t) => t.ref.on || t.ref.natural)) {
+              item.count = this.tables.reduce((n, t) => n * t.share.rows, 1);
+              item.constSum = true;
+            } else const_result = 0;
+          } else if (fn === 'min' || fn === 'max') {
+            const expr = item.args[0];
+            if (expr.type() === 'FIELD_ITEM') {
+              const r = findRangeKey(expr.field, cond);
+              if (!r) { const_result = 0; continue; }
+              const t = expr.field.table;
+              // the first (MIN) or last (MAX) key: NULLs come first in a MyISAM index
+              const rows = sortByKey(t.share, t, r.key, [...t.share.scan()].filter((x) => r.match(x.rec)));
+              if (!rows.length) return -1;
+              const row = fn === 'min' ? rows[0] : rows[rows.length - 1];
+              removed |= t.map;
+              t.record = row.rec; t.null_row = false;
+            } else if (!expr.const_item()) { const_result = 0; continue; }
+            item.reset();
+            item.constSum = true;
+          } else const_result = 0;
+        } else if (const_result && !item.const_item()) const_result = 0;
+      }
+      if (cond && (cond.used_tables() & ~removed)) const_result = 0;
+      return const_result;
+    }
+    // select_describe(): the plan, one row per table
+    describe(plan, need_tmp, need_order, distinct) {
+      const fields = [strCol('table', NAME_LEN), strCol('type', 10), strCol('possible_keys', NAME_LEN * MAX_KEY, true),
+        strCol('key', NAME_LEN, true), intCol('key_len', 3, true), strCol('ref', NAME_LEN * 16, true),
+        { table: '', name: 'rows', length: 10, type: T.DOUBLE, flags: F.NOT_NULL, decimals: 0 }, strCol('Extra', 255)];
+      const where = this.sel.where;
+      const selUsed = this.items.reduce((m, it) => m | it.used_tables(), 0) & ~RAND_TABLE_BIT;
+      const rows = [];
+      let used_tables = 0;
+      let avail = plan.constMap | RAND_TABLE_BIT;
+      const keyNames = (s, bits) => s.share.keys.filter((k, nr) => bits & (1 << nr)).map((k) => k.name).join(',') || null;
+      const storeLength = (s, key, part) => {
+        const k = s.share.keys[key], p = k.parts[part], f = s.share.fields[p.field];
+        return (p.length || f.pack_length()) + (f.nullable ? 1 : 0) + (f.type() === T.BLOB ? 2 : 0);
+      };
+      const entries = [...plan.constTabs.map((s) => ({ s, records: s.records_read === 0 ? 0 : 1, isConst: true })),
+        ...plan.positions.map((p) => ({ s: p.s, records: p.records }))];
+      entries.forEach(({ s, records, isConst }, i) => {
+        let type = s.type;
+        if (type === 'all') type = s.quick ? 'range' : s.index !== undefined && s.index >= 0 ? 'index' : 'ALL';
+        const refKey = s.type === 'const' && s.constKey ? s.constKey.key : s.type === 'eq_ref' || s.type === 'ref' ? s.refKey : -1;
+        const refUses = s.type === 'const' && s.constKey ? s.constKey.uses : s.refUses;
+        let key = null, key_len = null, ref = null, key_read = false;
+        if (refKey >= 0) {
+          let parts = 0, len = 0;
+          const names = [];
+          while (true) {
+            const u = refUses.find((x) => x.keypart === parts);
+            if (!u) break;
+            len += storeLength(s, refKey, parts);
+            names.push(!(u.used_tables & ~plan.constMap) ? 'const' : u.val.type() === 'FIELD_ITEM' ? u.val.full_name() : 'func');
+            parts++;
+          }
+          key = s.share.keys[refKey].name; key_len = String(len); ref = names.join(',');
+          key_read = !isConst && !!(s.used_keys & (1 << refKey));
+        } else if (type === 'index') {
+          key = s.share.keys[s.index].name; key_len = String(s.share.keys[s.index].key_length);
+          key_read = !!(s.used_keys & (1 << s.index));
+        } else if (type === 'range') {
+          key = s.share.keys[s.quick.key].name; key_len = String(s.quick.max_used_key_length);
+          key_read = !!(s.used_keys & (1 << s.quick.key));
+        }
+        if (!isConst) avail |= s.t.map;
+        const extra = [];
+        if (s.info) extra.push(s.info);
+        else if (!isConst && (condForTable(where, avail, s.t.map, plan) || s.quick)) extra.push('where used');
+        if (key_read) extra.push('Using index');
+        if (s.not_exists_optimize && s.on) extra.push('Not exists');
+        if (need_tmp) { need_tmp = false; extra.push('Using temporary'); }
+        if (need_order) { need_order = false; extra.push('Using filesort'); }
+        if (distinct && (used_tables & selUsed) === selUsed) extra.push('Distinct');
+        rows.push([s.t.alias, type, keyNames(s, s.keys), key, key_len, ref, fmtF(records, 0), extra.join('; ')]);
+        used_tables |= s.t.map;
+      });
+      return { fields, rows };
     }
     // filesort() of the first table: its rows by the sort keys, then by position
     filesortFirst(plan, s, order) {
@@ -7152,8 +7847,10 @@
       for (const g of groups) {
         const rows = g.rows;
         if (rows.length) this.setRow(rows[0]);
-        for (const s of this.sums) s.reset();
-        for (let i = 1; i < rows.length; i++) { this.setRow(rows[i]); for (const s of this.sums) s.add(); }
+        // (constants from opt_sum_query() keep their value: make_sum_func_list())
+        const sums = this.sums.filter((s) => !s.constSum);
+        for (const s of sums) s.reset();
+        for (let i = 1; i < rows.length; i++) { this.setRow(rows[i]); for (const s of sums) s.add(); }
         if (rows.length) this.setRow(rows[0]);
         if (this.having && !this.having.val_int()) continue;
         out.push(this.makeRow());
@@ -7262,6 +7959,103 @@
       return padcmp(a.slice(0, f.field_length), b.slice(0, f.field_length), f.binary());
     }
     return f.cmpv(a, b);
+  }
+  // describe_info(): EXPLAIN when no table is read
+  const describeInfo = (info) => ({ fields: [strCol('Comment', 80)], rows: [[info]] });
+  // make_cond_for_table(): the part of the WHERE that can be checked when
+  // the tables are read and that uses used_table (without what the ref key
+  // lookup already guarantees: test_if_ref())
+  function condForTable(cond, tables, used_table, plan) {
+    if (!cond) return null;
+    if (used_table && !(cond.used_tables() & used_table)) return null;
+    if (cond instanceof Item_cond_and) {
+      const parts = cond.args.map((a) => condForTable(a, tables, used_table, plan)).filter(Boolean);
+      return parts.length ? parts : null;
+    }
+    if (cond instanceof Item_cond_or) {
+      for (const a of cond.args) if (!condForTable(a, tables, 0, plan)) return null;
+      return cond;
+    }
+    if (cond.used_tables() & ~tables) return null;
+    if (cond instanceof Item_func_eq) {
+      const [l, r] = cond.args;
+      if (l.type() === 'FIELD_ITEM' && testIfRef(plan, l.field, r)) return null;
+      if (r.type() === 'FIELD_ITEM' && testIfRef(plan, r.field, l)) return null;
+    }
+    return cond;
+  }
+  // test_if_ref(): the condition "field = value" is what the key lookup reads
+  function testIfRef(plan, field, value) {
+    const s = plan.tabs.find((x) => x.t === field.table);
+    if (!s) return false;
+    const key = s.type === 'const' && s.constKey ? s.constKey.key : s.type === 'eq_ref' || s.type === 'ref' ? s.refKey : -1;
+    if (key < 0) return false;
+    const uses = s.type === 'const' ? s.constKey.uses : s.refUses;
+    const k = s.share.keys[key];
+    let ref_item = null;
+    for (let part = 0; part < k.parts.length; part++) {
+      const u = uses.find((x) => x.keypart === part);
+      if (!u) break;
+      if (k.parts[part].field === field.idx && !k.parts[part].length) { ref_item = u.val; break; }
+    }
+    if (!ref_item || !ref_item.eq(value)) return false;
+    if (value.type() === 'FIELD_ITEM') {
+      const g = value.field;
+      return g.real_type() === field.real_type() && g.binary() === field.binary() && g.pack_length() === field.pack_length();
+    }
+    if (value.const_item() && field.binary() && (field.type() !== T.FLOAT || field.decimals() === 0)) {
+      // store_val_in_field(): exact when nothing was cut
+      const probe = new TableInst(s.share, s.t.alias);
+      const f = probe.fields[field.idx];
+      const saved = THD.cuted_fields, sc = THD.count_cuted_fields;
+      THD.count_cuted_fields = true; THD.cuted_fields = 0;
+      try { value.save_in_field(f); return THD.cuted_fields === 0; } finally { THD.cuted_fields = saved; THD.count_cuted_fields = sc; }
+    }
+    return false;
+  }
+  // find_range_key() (opt_sum.cc): an index that gives MIN()/MAX() of field
+  function findRangeKey(field, cond) {
+    if (!(field.flags & F.PART_KEY)) return null;
+    const t = field.table, share = t.share;
+    if (share.options.engine === 'HEAP') return null;
+    if (field.key_start && (!cond || !(cond.used_tables() & t.map))) {
+      let key = 0;
+      while (!(field.key_start & (1 << key))) key++;
+      return { key, match: () => true };
+    }
+    if (!cond) return null;
+    // WHERE is exactly "key part = constant" for the parts before field
+    const eqs = [];
+    const walk = (c) => {
+      if (c instanceof Item_cond_and) return c.args.every(walk);
+      if (!(c.used_tables() & t.map)) return true;
+      if ((c instanceof Item_func_eq || c instanceof Item_func_equal) && c.used_tables() === t.map) {
+        const [l, r] = c.args;
+        if (l.type() === 'FIELD_ITEM' && (l.field.flags & F.PART_KEY) && r.const_item()) { eqs.push({ f: l.field, v: r }); return true; }
+        if (r.type() === 'FIELD_ITEM' && (r.field.flags & F.PART_KEY) && l.const_item()) { eqs.push({ f: r.field, v: l }); return true; }
+      }
+      return false;
+    };
+    if (!walk(cond) || !eqs.length || eqs.length > 16) return null;
+    for (let nr = 0; nr < share.keys.length; nr++) {
+      const k = share.keys[nr];
+      if (eqs.length >= k.parts.length) continue;
+      const vals = [];
+      let ok = true;
+      for (let part = 0; part < eqs.length; part++) {
+        const e = eqs.find((x) => x.f.idx === k.parts[part].field);
+        if (!e) { ok = false; break; }
+        const probe = new TableInst(share, t.alias);
+        const f = probe.fields[e.f.idx];
+        f.set_notnull();
+        e.v.save_in_field(f);
+        vals.push({ idx: e.f.idx, v: probe.record[e.f.idx], f });
+      }
+      if (ok && k.parts[eqs.length].field === field.idx) {
+        return { key: nr, match: (rec) => vals.every((x) => (x.v === null ? rec[x.idx] === null : rec[x.idx] !== null && valCmp(x.f, rec[x.idx], x.v) === 0)) };
+      }
+    }
+    return null;
   }
   // const_expression_in_where(): the item is compared equal to a constant
   function constExpressionInWhere(cond, item) {
@@ -7457,14 +8251,13 @@
   }
 
   // the rows of one table a WHERE selects, in the order MySQL reads them
-  function selectRows(conn, t, where) {
-    const q = { tables: [t], all: [], sel: { where, options: {} }, having: null, order: [], group: [] };
+  // (SQL_SELECT::check_quick(): a range on any key, else a table scan)
+  function selectRows(conn, t, where, limit = Infinity) {
     const conds = splitAnd(where);
     for (const c of conds) if (c.const_item() && !(c.used_tables() & RAND_TABLE_BIT) && !c.val_int()) return [];
     const s = { t, share: t.share, on: null, keyuse: [], records: t.share.rows, used_keys: 0 };
-    s.found_records = s.records;
-    const qs = where ? quickSelect(q, s, conds, 0) : null;
-    const rows = qs ? qs.rows : [...t.share.scan()];
+    const r = where ? testQuickSelect(s, where, (1 << t.share.keys.length) - 1, 0, limit) : null;
+    const rows = r && r.quick ? r.quick.rows : [...t.share.scan()];
     const out = [];
     for (const r of rows) {
       t.record = r.rec; t.null_row = false; t.pos = r.pos;
@@ -7485,7 +8278,7 @@
     if (limit === 0) return { affected: 0n };
     THD.count_cuted_fields = true;
     THD.cuted_fields = 0;
-    const rows = selectRows(conn, t, st.where);
+    const rows = selectRows(conn, t, st.where, limit);
     let found = 0, updated = 0, error = null;
     const share = t.share;
     for (const r of rows) {
@@ -7532,7 +8325,7 @@
     const limit = st.limit === null ? Infinity : Number(st.limit);
     let deleted = 0;
     if (limit) {
-      for (const r of selectRows(conn, t, st.where)) {
+      for (const r of selectRows(conn, t, st.where, limit)) {
         if (!t.share.slots[r.pos]) continue;
         t.share.deleteRow(r.pos);
         deleted++;
@@ -9036,7 +9829,6 @@
       if (st.procedure && !strcaseeq(st.procedure.name, 'analyse')) throw myError(ER.UNKNOWN_PROCEDURE, st.procedure.name);
       const q = new Select(this, st);
       q.prepare();
-      if (st.describe) return explain(this, q);
       const res = q.run();
       if (st.into) { res.items = q.items; return selectInto(this, st.into, res); }
       return res;
@@ -9104,27 +9896,6 @@
       }
     }
     return true;
-  }
-
-  // EXPLAIN SELECT: the join plan
-  function explain(conn, q) {
-    const fields = [strCol('table', NAME_LEN), strCol('type', 10), strCol('possible_keys', NAME_LEN * MAX_KEY, true),
-      strCol('key', NAME_LEN, true), intCol('key_len', 3, true), strCol('ref', NAME_LEN * 16, true), intCol('rows', 10), strCol('Extra', 255)];
-    if (!q.tables.length) return { fields, rows: [] };
-    const conds = splitAnd(q.sel.where);
-    const plan = planJoin(q, conds);
-    if (plan.impossible) return { fields: [strCol('Comment', 255)], rows: [['Impossible WHERE noticed after reading const tables']] };
-    const rows = [];
-    for (const s of plan.tabs.filter((x) => x.type === 'const' || x.type === 'system')) {
-      rows.push([s.t.alias, s.type, null, null, null, null, '1', '']);
-    }
-    for (const p of plan.positions) {
-      const s = p.s;
-      const key = p.key !== undefined && p.key !== null && p.key >= 0 ? s.share.keys[p.key] : null;
-      rows.push([s.t.alias, (s.type || 'ALL').toUpperCase() === 'ALL' ? 'ALL' : s.type, null, key ? key.name : null,
-        key ? String(key.key_length) : null, null, String(Math.max(1, Math.round(p.records_read || s.records || 0))), '']);
-    }
-    return { fields, rows };
   }
 
   // ---------------------------------------------------------------------------

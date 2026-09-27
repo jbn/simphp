@@ -1,0 +1,471 @@
+> CREATE TABLE u (id int NOT NULL auto_increment PRIMARY KEY, name varchar(20) NOT NULL, age int, city char(10), score int NOT NULL, KEY age (age), KEY city_score (city, score), UNIQUE KEY name (name))
+  ok affected=0 insert_id=0
+> CREATE TABLE o (oid int NOT NULL auto_increment PRIMARY KEY, uid int NOT NULL, amount decimal(8,2), note text, KEY uid (uid))
+  ok affected=0 insert_id=0
+> CREATE TABLE one (x int)
+  ok affected=0 insert_id=0
+> INSERT INTO one VALUES (1)
+  ok affected=1 insert_id=0
+> CREATE TABLE empty (x int)
+  ok affected=0 insert_id=0
+> EXPLAIN SELECT * FROM u
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'u' | 'ALL' | NULL | NULL | NULL | NULL | '12' | ''
+> EXPLAIN SELECT * FROM u WHERE id = 3
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=7 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=7 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'u' | 'const' | 'PRIMARY' | 'PRIMARY' | '4' | 'const' | '1' | ''
+> EXPLAIN SELECT * FROM u WHERE id = 99
+  rows=1 fields=1
+  [Comment] table='' type=string len=80 flags='not_null' max=51 num=0 blob=0
+  | 'Impossible WHERE noticed after reading const tables'
+> EXPLAIN SELECT * FROM u WHERE name = 'bob'
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=4 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=4 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=2 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'u' | 'const' | 'name' | 'name' | '20' | 'const' | '1' | ''
+> EXPLAIN SELECT name FROM u WHERE age = 21
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'ref' | 'age' | 'age' | '5' | 'const' | '2' | 'where used'
+> EXPLAIN SELECT age FROM u WHERE age = 21
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=23 num=0 blob=0
+  | 'u' | 'ref' | 'age' | 'age' | '5' | 'const' | '2' | 'where used; Using index'
+> EXPLAIN SELECT * FROM u WHERE age > 22
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'range' | 'age' | 'age' | '5' | NULL | '3' | 'where used'
+> EXPLAIN SELECT * FROM u WHERE age BETWEEN 21 AND 22
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'range' | 'age' | 'age' | '5' | NULL | '4' | 'where used'
+> EXPLAIN SELECT * FROM u WHERE age IN (21, 23)
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'range' | 'age' | 'age' | '5' | NULL | '3' | 'where used'
+> EXPLAIN SELECT * FROM u WHERE age IS NULL
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'ref' | 'age' | 'age' | '5' | 'const' | '3' | 'where used'
+> EXPLAIN SELECT * FROM u WHERE city = 'rome' AND score > 3
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=10 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=10 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=2 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'range' | 'city_score' | 'city_score' | '15' | NULL | '1' | 'where used'
+> EXPLAIN SELECT * FROM u WHERE city LIKE 'pa%'
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=10 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'ALL' | 'city_score' | NULL | NULL | NULL | '12' | 'where used'
+> EXPLAIN SELECT * FROM u WHERE city LIKE '%is'
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'ALL' | NULL | NULL | NULL | NULL | '12' | 'where used'
+> EXPLAIN SELECT * FROM u WHERE name = 5
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=4 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'ALL' | 'name' | NULL | NULL | NULL | '12' | 'where used'
+> EXPLAIN SELECT * FROM u WHERE age = '21'
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'ref' | 'age' | 'age' | '5' | 'const' | '2' | 'where used'
+> EXPLAIN SELECT * FROM u WHERE age = 21 OR age = 22
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'range' | 'age' | 'age' | '5' | NULL | '4' | 'where used'
+> EXPLAIN SELECT * FROM u WHERE age = 21 OR score = 3
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'ALL' | 'age' | NULL | NULL | NULL | '12' | 'where used'
+> EXPLAIN SELECT id FROM u ORDER BY id DESC
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=7 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=11 num=0 blob=0
+  | 'u' | 'index' | NULL | 'PRIMARY' | '4' | NULL | '12' | 'Using index'
+> EXPLAIN SELECT * FROM u ORDER BY name LIMIT 3
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=4 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=2 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'u' | 'index' | NULL | 'name' | '20' | NULL | '12' | ''
+> EXPLAIN SELECT * FROM u ORDER BY score
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=14 num=0 blob=0
+  | 'u' | 'ALL' | NULL | NULL | NULL | NULL | '12' | 'Using filesort'
+> EXPLAIN SELECT city, COUNT(*) FROM u GROUP BY city
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=10 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=2 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=11 num=0 blob=0
+  | 'u' | 'index' | NULL | 'city_score' | '15' | NULL | '12' | 'Using index'
+> EXPLAIN SELECT age, COUNT(*) FROM u GROUP BY age
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=11 num=0 blob=0
+  | 'u' | 'index' | NULL | 'age' | '5' | NULL | '12' | 'Using index'
+> EXPLAIN SELECT score, COUNT(*) FROM u GROUP BY score ORDER BY 2
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=10 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=2 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=44 num=0 blob=0
+  | 'u' | 'index' | NULL | 'city_score' | '15' | NULL | '12' | 'Using index; Using temporary; Using filesort'
+> EXPLAIN SELECT DISTINCT city FROM u
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=10 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=2 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=11 num=0 blob=0
+  | 'u' | 'index' | NULL | 'city_score' | '15' | NULL | '12' | 'Using index'
+> EXPLAIN SELECT DISTINCT u.city FROM u, o WHERE o.uid = u.id
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=6 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=7 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=7 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=28 num=0 blob=0
+  | 'o' | 'index' | 'uid' | 'uid' | '4' | NULL | '30' | 'Using index; Using temporary'
+  | 'u' | 'eq_ref' | 'PRIMARY' | 'PRIMARY' | '4' | 'o.uid' | '1' | ''
+> EXPLAIN SELECT u.name, o.amount FROM u, o WHERE o.uid = u.id
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=6 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=7 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=7 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'o' | 'ALL' | 'uid' | NULL | NULL | NULL | '30' | ''
+  | 'u' | 'eq_ref' | 'PRIMARY' | 'PRIMARY' | '4' | 'o.uid' | '1' | ''
+> EXPLAIN SELECT u.name, o.amount FROM o, u WHERE o.uid = u.id AND u.age > 22
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=11 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=4 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'u' | 'range' | 'PRIMARY,age' | 'age' | '5' | NULL | '3' | 'where used'
+  | 'o' | 'ref' | 'uid' | 'uid' | '4' | 'u.id' | '12' | ''
+> EXPLAIN SELECT u.name, o.amount FROM u LEFT JOIN o ON o.uid = u.id
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=4 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'u' | 'ALL' | NULL | NULL | NULL | NULL | '12' | ''
+  | 'o' | 'ref' | 'uid' | 'uid' | '4' | 'u.id' | '12' | ''
+> EXPLAIN SELECT u.name FROM u LEFT JOIN o ON o.uid = u.id WHERE o.oid IS NULL
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=4 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=22 num=0 blob=0
+  | 'u' | 'ALL' | NULL | NULL | NULL | NULL | '12' | ''
+  | 'o' | 'ref' | 'uid' | 'uid' | '4' | 'u.id' | '12' | 'where used; Not exists'
+> EXPLAIN SELECT * FROM u, one WHERE u.id = one.x
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=3 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=6 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=7 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=7 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'one' | 'system' | NULL | NULL | NULL | NULL | '1' | ''
+  | 'u' | 'const' | 'PRIMARY' | 'PRIMARY' | '4' | 'const' | '1' | ''
+> EXPLAIN SELECT * FROM u, empty
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=5 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=6 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=19 num=0 blob=0
+  | 'empty' | 'system' | NULL | NULL | NULL | NULL | '0' | 'const row not found'
+  | 'u' | 'ALL' | NULL | NULL | NULL | NULL | '12' | ''
+> EXPLAIN SELECT * FROM u, o
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'u' | 'ALL' | NULL | NULL | NULL | NULL | '12' | ''
+  | 'o' | 'ALL' | NULL | NULL | NULL | NULL | '30' | ''
+> EXPLAIN SELECT * FROM u WHERE 1 = 0
+  rows=1 fields=1
+  [Comment] table='' type=string len=80 flags='not_null' max=16 num=0 blob=0
+  | 'Impossible WHERE'
+> EXPLAIN SELECT 1 + 1
+  rows=1 fields=1
+  [Comment] table='' type=string len=80 flags='not_null' max=14 num=0 blob=0
+  | 'No tables used'
+> EXPLAIN SELECT COUNT(*) FROM u
+  rows=1 fields=1
+  [Comment] table='' type=string len=80 flags='not_null' max=28 num=0 blob=0
+  | 'Select tables optimized away'
+> EXPLAIN SELECT COUNT(*) FROM u WHERE age > 1
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=23 num=0 blob=0
+  | 'u' | 'range' | 'age' | 'age' | '5' | NULL | '9' | 'where used; Using index'
+> EXPLAIN SELECT MIN(age), MAX(age) FROM u
+  rows=1 fields=1
+  [Comment] table='' type=string len=80 flags='not_null' max=28 num=0 blob=0
+  | 'Select tables optimized away'
+> EXPLAIN SELECT MIN(score) FROM u WHERE city = 'rome'
+  rows=1 fields=1
+  [Comment] table='' type=string len=80 flags='not_null' max=28 num=0 blob=0
+  | 'Select tables optimized away'
+> EXPLAIN SELECT MAX(id) FROM u WHERE id < 0
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=7 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=7 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=23 num=0 blob=0
+  | 'u' | 'range' | 'PRIMARY' | 'PRIMARY' | '4' | NULL | '1' | 'where used; Using index'
+> EXPLAIN SELECT COUNT(*), SUM(score) FROM u
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=0 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=10 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=2 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=11 num=0 blob=0
+  | 'u' | 'index' | NULL | 'city_score' | '15' | NULL | '12' | 'Using index'
+> EXPLAIN SELECT * FROM u WHERE id = 3 AND name = 'nobody'
+  rows=1 fields=1
+  [Comment] table='' type=string len=80 flags='not_null' max=51 num=0 blob=0
+  | 'Impossible WHERE noticed after reading const tables'
+> EXPLAIN SELECT * FROM u STRAIGHT_JOIN o WHERE o.uid = u.id
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=7 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=4 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'u' | 'ALL' | 'PRIMARY' | NULL | NULL | NULL | '12' | ''
+  | 'o' | 'ref' | 'uid' | 'uid' | '4' | 'u.id' | '12' | ''
+> EXPLAIN SELECT * FROM o WHERE uid = 3 ORDER BY oid
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=26 num=0 blob=0
+  | 'o' | 'ref' | 'uid' | 'uid' | '4' | 'const' | '3' | 'where used; Using filesort'
+> SELECT MIN(age), MAX(age), MIN(city), COUNT(*) FROM u
+  rows=1 fields=4
+  | NULL | '24' | 'paris' | '12'
+> SELECT MIN(age), SUM(score) FROM u
+  rows=1 fields=2
+  | NULL | '52'
+> SELECT MIN(score) FROM u WHERE city = 'rome'
+  rows=1 fields=1
+  | '0'
+> SELECT MAX(score) FROM u WHERE city = 'nowhere'
+  rows=1 fields=1
+  | NULL
+> SELECT MIN(id), MAX(id) FROM u WHERE id < 0
+  rows=1 fields=2
+  | NULL | NULL
+> EXPLAIN SELECT * FROM nosuch
+  ERR 1146: Table 'test.nosuch' doesn't exist
+> DESCRIBE SELECT name FROM u WHERE id = 1
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=7 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=7 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'u' | 'const' | 'PRIMARY' | 'PRIMARY' | '4' | 'const' | '1' | ''
