@@ -9562,7 +9562,8 @@
     constructor(server, opts = {}) {
       this.srv = server;
       this.internal = !!opts.internal;
-      this.threadId = server.nextThread++;
+      // (the bootstrap connection of mysql_install_db is not a thread)
+      this.threadId = opts.internal ? 0 : server.nextThread++;
       this.db = null;
       this.user = 'root';
       this.host = 'localhost';

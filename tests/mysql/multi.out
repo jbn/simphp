@@ -1,0 +1,82 @@
+a != b: yes, a == c: yes
+[a] > SELECT CONNECTION_ID()
+  | '1'
+[b] > SELECT CONNECTION_ID()
+  | '2'
+[a] > CREATE TABLE m (id int NOT NULL auto_increment PRIMARY KEY, v char(5))
+  ok affected=0 insert_id=0
+[a] > INSERT INTO m (v) VALUES ('a1')
+  ok affected=1 insert_id=1
+[b] > INSERT INTO m (v) VALUES ('b1'), ('b2')
+  ok affected=2 insert_id=0
+[a] > SELECT LAST_INSERT_ID(), @@IDENTITY
+  | '1' | '1'
+[b] > SELECT LAST_INSERT_ID()
+  | '2'
+insert ids: 1 0 default link: 1
+[a] > SET @x = 'from a'
+  ok affected=0 insert_id=0
+[b] > SELECT @x
+  | NULL
+[a] > SELECT @x
+  | 'from a'
+[a] > CREATE TEMPORARY TABLE tmp (n int)
+  ok affected=0 insert_id=0
+[a] > INSERT INTO tmp VALUES (1)
+  ok affected=1 insert_id=0
+[b] > SELECT * FROM tmp
+  ERR 1146: Table 'test.tmp' doesn't exist
+[b] > CREATE TEMPORARY TABLE tmp (n int, w int)
+  ok affected=0 insert_id=0
+[b] > INSERT INTO tmp VALUES (2, 3)
+  ok affected=1 insert_id=0
+[a] > SELECT * FROM tmp
+  | '1'
+[b] > SELECT * FROM tmp
+  | '2' | '3'
+[a] > SHOW TABLES
+  | 'm'
+[a] > SELECT GET_LOCK('lk', 0)
+  | '1'
+[b] > SELECT GET_LOCK('lk', 0), IS_FREE_LOCK('lk')
+  ERR 1064: You have an error in your SQL syntax near '('lk')' at line 1
+[b] > SELECT RELEASE_LOCK('lk')
+  | '0'
+[a] > SELECT RELEASE_LOCK('lk')
+  | '1'
+[b] > SELECT GET_LOCK('lk', 0)
+  | '1'
+[a] > SELECT IS_FREE_LOCK('lk'), GET_LOCK('other', 0)
+  ERR 1064: You have an error in your SQL syntax near '('lk'), GET_LOCK('other', 0)' at line 1
+[b] > SELECT GET_LOCK('lk2', 0)
+  | '1'
+[b] > SELECT IS_FREE_LOCK('lk')
+  ERR 1064: You have an error in your SQL syntax near '('lk')' at line 1
+[a] > LOCK TABLES m READ
+  ok affected=0 insert_id=0
+[b] > SELECT COUNT(*) FROM m
+  | '3'
+[a] > SELECT COUNT(*) FROM m
+  | '3'
+[a] > UNLOCK TABLES
+  ok affected=0 insert_id=0
+[a] > USE mysql
+  ok affected=0 insert_id=0
+[b] > SELECT DATABASE()
+  | 'test'
+[a] > SELECT DATABASE()
+  | 'mysql'
+  process 1 root localhost 'mysql' Query NULL 'SHOW PROCESSLIST'
+  process 2 root localhost 'test' Sleep '' NULL
+[a] > KILL 999
+  ERR 1094: Unknown thread id: 999
+[a] > KILL 2
+  ok affected=0 insert_id=0
+[b] > SELECT 1
+  | '1'
+[b] > SELECT CONNECTION_ID(), DATABASE()
+  | '3' | 'test'
+[a] > SELECT 'still here'
+  | 'still here'
+query on closed link: NULL
+default after close: resource(26) of type (mysql result)

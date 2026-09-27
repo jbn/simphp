@@ -913,8 +913,11 @@ int simphp_sock_read(int fd, void *buf, int size)
 
 int simphp_sock_write(int fd, const void *buf, int size)
 {
-	if (fd >= 0 && fd < SIMPHP_MAXFD && (simphp_sockfd[fd] & SIMPHP_SOCK_SERVICE))
-		return simphp_service_write(fd, buf, size);
+	if (fd >= 0 && fd < SIMPHP_MAXFD && (simphp_sockfd[fd] & SIMPHP_SOCK_SERVICE)) {
+		int r = simphp_service_write(fd, buf, size);
+		if (r < 0) errno = EPIPE;	/* the service closed the connection */
+		return r;
+	}
 	return (int) write(fd, buf, size);
 }
 

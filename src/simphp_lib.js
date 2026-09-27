@@ -313,7 +313,8 @@ addToLibrary({
   // ---------------------------------------------------------------------------
   // Local network services (the simulated mysqld). The service object comes
   // from the embedder as Module.simphpServices = { connect(path, port) -> conn },
-  // conn = { write(Uint8Array), read(max) -> Uint8Array, close() }.
+  // conn = { write(Uint8Array), read(max) -> Uint8Array, close(), closed }.
+  // A connection the service closed reads EOF and fails writes (EPIPE).
   // ---------------------------------------------------------------------------
   $simphpConns: {},
   simphp_service_connect__deps: ['$simphpConns', '$UTF8ToString'],
@@ -336,7 +337,7 @@ addToLibrary({
   simphp_service_write__deps: ['$simphpConns'],
   simphp_service_write: (fd, buf, size) => {
     var c = simphpConns[fd];
-    if (!c) return -1;
+    if (!c || c.closed) return -1;
     c.write(HEAPU8.slice(buf, buf + size));
     return size;
   },
