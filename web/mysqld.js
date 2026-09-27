@@ -5933,6 +5933,7 @@
     *scan() { for (let i = 0; i < this.slots.length; i++) if (this.slots[i]) yield { pos: i, rec: this.slots[i] }; }
     insertRow(rec) {
       const pos = this.free.length ? this.free.pop() : this.slots.length;
+      this.version = (this.version || 0) + 1;
       this.slots[pos] = rec;
       // _mi_new(): the first key of an index allocates its root page
       if (!this.count && this.keys.length) this.not_sorted_pages = true;
@@ -5943,6 +5944,7 @@
       return pos;
     }
     deleteRow(pos) {
+      this.version = (this.version || 0) + 1;
       this.indexRemove(pos, this.slots[pos]);
       this.slots[pos] = null;
       this.free.push(pos);
@@ -5951,6 +5953,7 @@
       if (!this.count && this.keys.length) this.not_sorted_pages = true;
     }
     updateRow(pos, rec) {
+      this.version = (this.version || 0) + 1;
       this.indexRemove(pos, this.slots[pos]);
       this.slots[pos] = rec;
       this.indexAdd(pos, rec);
@@ -5969,7 +5972,7 @@
       const u = BigInt.asUintN(bits, n);
       if (u + 1n > BigInt(this.auto_increment)) this.auto_increment = Number(u + 1n);
     }
-    truncate() { this.slots = []; this.free = []; this.count = 0; this.indexes = null; this.blocks = null; }
+    truncate() { this.version = (this.version || 0) + 1; this.slots = []; this.free = []; this.count = 0; this.indexes = null; this.blocks = null; }
     // unique key lookup: a string that is equal for values MySQL's key compares as equal
     keyString(key, rec) {
       let s = '';
@@ -6114,6 +6117,12 @@
       this.count = rows.length;
       this.indexes = null;
       this.blocks = null;
+      this.version = (this.version || 0) + 1;
+    }
+    // caches that last until the next write
+    cache(name) {
+      if (!this._cache || this._cache.version !== this.version) this._cache = { version: this.version };
+      return this._cache[name] || (this._cache[name] = new Map());
     }
   }
   // normalized key part value for unique checks
@@ -6668,6 +6677,13 @@
   // range conditions on the first part of a key (opt_range.cc, simplified):
   // the rows in range, in key order, when the range is cheaper than a scan
   // rows in the order of a key (the key value, then the row position)
+  // all rows in the order of a key (cached until the table changes)
+  function indexOrder(share, t, key) {
+    const c = share.cache('order');
+    let r = c.get(key);
+    if (!r) { r = sortByKey(share, t, key, [...share.scan()]); c.set(key, r); }
+    return r;
+  }
   function sortByKey(share, t, key, rows) {
     const k = share.keys[key];
     const fields = k.parts.map((p) => t.fields[p.field]);
@@ -6700,15 +6716,28 @@
       const v = probe.record[f.idx];
       want.push({ idx: f.idx, norm: v === null ? null : keyNorm(f, v, k.parts[part].length) });
     }
-    const out = [];
-    for (const r of s.share.scan()) {
-      if (want.every((w) => (w.norm === null ? r.rec[w.idx] === null : r.rec[w.idx] !== null &&
-        keyNorm(t.fields[w.idx], r.rec[w.idx], k.parts[want.indexOf(w)].length) === w.norm))) {
-        if (first) return r;
-        out.push(r);
+    // the rows by key prefix, in key order (cached until the table changes)
+    const c = s.share.cache('lookup');
+    const ck = key + ':' + want.length;
+    let map = c.get(ck);
+    if (!map) {
+      map = new Map();
+      for (const r of indexOrder(s.share, t, key)) {
+        let h = '';
+        for (let i = 0; i < want.length; i++) {
+          const v = r.rec[want[i].idx];
+          h += (v === null ? '\x02N' : '\x01' + keyNorm(t.fields[want[i].idx], v, k.parts[i].length)) + '\x00';
+        }
+        let list = map.get(h);
+        if (!list) map.set(h, (list = []));
+        list.push(r);
       }
+      c.set(ck, map);
     }
-    return first ? null : sortByKey(s.share, t, key, out);
+    let h = '';
+    for (const w of want) h += (w.norm === null ? '\x02N' : '\x01' + w.norm) + '\x00';
+    const out = map.get(h) || [];
+    return first ? out[0] || null : out;
   }
   // only_eq_ref_tables(): each table is found by a unique key from columns
   // that are earlier in the order (so it doesn't change the order)
@@ -6812,7 +6841,7 @@
         }
         if (s.quick) return s.quick.rows;
         if (s.index !== undefined && s.index >= 0) {
-          const r = sortByKey(s.share, t, s.index, [...s.share.scan()]);
+          const r = indexOrder(s.share, t, s.index).slice();
           return s.indexReverse ? r.reverse() : r;
         }
         return [...s.share.scan()];
@@ -7286,7 +7315,7 @@
         if (k === IMPOSSIBLE) found = 0;
         else if (k.part !== 0) continue;
         else {
-          const index = sortByKey(share, s.t, nr, [...share.scan()]);
+          const index = indexOrder(share, s.t, nr);
           const st = { max_key_part: 0 };
           found = checkQuickKeys(share, nr, index, k, [], 0, [], 0, st);
           res.quick_rows[nr] = found;
@@ -7301,7 +7330,7 @@
       }
       if (best && records) {
         // get_quick_select(): the rows of the ranges, in key order
-        const rows = sortByKey(share, s.t, best.nr, [...share.scan()].filter((r) => best.k !== IMPOSSIBLE && inTree(share, best.k, r.rec)));
+        const rows = indexOrder(share, s.t, best.nr).filter((r) => best.k !== IMPOSSIBLE && inTree(share, best.k, r.rec));
         res.quick = { key: best.nr, rows, records, read_time, max_used_key_length: usedKeyLength(share, best.nr, res.quick_key_parts[best.nr]) };
       }
     }
