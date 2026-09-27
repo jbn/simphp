@@ -1,0 +1,199 @@
+> CREATE TABLE users (user_id mediumint(8) NOT NULL auto_increment, username varchar(25) NOT NULL default '', user_password varchar(32) NOT NULL default '', user_regdate int(11) NOT NULL default '0', user_level tinyint(4) default '0', user_posts mediumint(8) unsigned NOT NULL default '0', user_email varchar(255) default NULL, PRIMARY KEY (user_id), KEY user_level (user_level))
+  ok affected=0 insert_id=0
+> CREATE TABLE posts (post_id mediumint(8) unsigned NOT NULL auto_increment, topic_id mediumint(8) unsigned NOT NULL default '0', poster_id mediumint(8) NOT NULL default '0', post_time int(11) NOT NULL default '0', post_subject varchar(60), post_text text, PRIMARY KEY (post_id), KEY topic_id (topic_id), KEY poster_id (poster_id), KEY post_time (post_time))
+  ok affected=0 insert_id=0
+> CREATE TABLE sessions (session_id char(32) NOT NULL default '', session_user_id mediumint(8) NOT NULL default '0', session_start int(11) NOT NULL default '0', session_time int(11) NOT NULL default '0', session_ip char(8) NOT NULL default '0', PRIMARY KEY (session_id), KEY session_user_id (session_user_id))
+  ok affected=0 insert_id=0
+> INSERT INTO users (username, user_password, user_regdate, user_level, user_email) VALUES ('admin', MD5('secret'), 1009000000, 1, 'admin@example.com')
+  ok affected=1 insert_id=1
+> INSERT INTO users (username, user_password, user_regdate) VALUES ('Anonymous', '', 0)
+  ok affected=1 insert_id=2
+> INSERT INTO users VALUES (NULL, 'bob', '8fe4c11451281c094a6578e6ddbf5eed', 1009100000, 0, 0, NULL)
+  ok affected=1 insert_id=3
+last post id: 12
+> SELECT user_id, username, user_level FROM users WHERE username = 'ADMIN' AND user_password = '5ebe2294ecd0e0f08eab7690d2a6ee69'
+  rows=1 fields=3
+  [user_id] table='users' type=int len=8 flags='not_null primary_key auto_increment' max=1 num=1 blob=0
+  [username] table='users' type=string len=25 flags='not_null' max=5 num=0 blob=0
+  [user_level] table='users' type=int len=4 flags='multiple_key' max=1 num=1 blob=0
+  | '1' | 'admin' | '1'
+> SELECT COUNT(*) AS total FROM posts WHERE topic_id = 2
+  rows=1 fields=1
+  [total] table='' type=int len=21 flags='not_null' max=1 num=1 blob=0
+  | '4'
+> SELECT p.post_id, p.post_subject, u.username, FROM_UNIXTIME(p.post_time, '%d %b %Y %H:%i') AS posted FROM posts p, users u WHERE u.user_id = p.poster_id AND p.topic_id = 1 ORDER BY p.post_time DESC LIMIT 0, 3
+  rows=3 fields=4
+  | '12' | 'Subject 12' | 'admin' | '22 Dec 2001 17:46'
+  | '9' | 'Subject 9' | 'Anonymous' | '22 Dec 2001 14:46'
+  | '6' | 'Subject 6' | 'admin' | '22 Dec 2001 11:46'
+> SELECT topic_id, COUNT(*) AS replies, MAX(post_time) AS last FROM posts GROUP BY topic_id ORDER BY last DESC
+  rows=3 fields=3
+  | '1' | '4' | '1009043200'
+  | '3' | '4' | '1009039600'
+  | '2' | '4' | '1009036000'
+> SELECT u.username, COUNT(p.post_id) AS n FROM users u LEFT JOIN posts p ON p.poster_id = u.user_id GROUP BY u.user_id ORDER BY n DESC, u.username
+  rows=3 fields=2
+  | 'admin' | '6'
+  | 'Anonymous' | '6'
+  | 'bob' | '0'
+> UPDATE users SET user_posts = user_posts + 1 WHERE user_id = 1
+  ok affected=1 insert_id=0
+> UPDATE users SET user_posts = user_posts - 5 WHERE user_id = 1
+  ok affected=1 insert_id=0
+> SELECT user_posts FROM users WHERE user_id = 1
+  rows=1 fields=1
+  | '0'
+> SELECT post_id, LEFT(post_text, 12) AS preview, LENGTH(post_text) FROM posts WHERE post_text LIKE '%#1%' ORDER BY post_id
+  rows=4 fields=3
+  | '1' | 'Post body #1' | '28'
+  | '10' | 'Post body #1' | '29'
+  | '11' | 'Post body #1' | '29'
+  | '12' | 'Post body #1' | '29'
+> SELECT post_id FROM posts WHERE post_subject LIKE 'subject 1_' OR post_subject = 'Subject 2' ORDER BY post_id
+  rows=4 fields=1
+  | '2'
+  | '10'
+  | '11'
+  | '12'
+> SELECT * FROM posts WHERE post_id IN (3, 5, 99) ORDER BY post_id DESC
+  rows=2 fields=6
+  | '5' | '3' | '2' | '1009018000' | 'Subject 5' | 'Post body #5: it's "quoted"
+'
+  | '3' | '1' | '2' | '1009010800' | 'Subject 3' | 'Post body #3: it's "quoted"
+'
+> SELECT post_id FROM posts WHERE post_time BETWEEN 1009010000 AND 1009020000
+  rows=3 fields=1
+  | '3'
+  | '4'
+  | '5'
+> SELECT DISTINCT topic_id FROM posts ORDER BY topic_id DESC
+  rows=3 fields=1
+  | '3'
+  | '2'
+  | '1'
+> SELECT DISTINCT poster_id, topic_id FROM posts
+  rows=6 fields=2
+  | '2' | '2'
+  | '1' | '3'
+  | '2' | '1'
+  | '1' | '2'
+  | '2' | '3'
+  | '1' | '1'
+> SELECT post_id FROM posts ORDER BY post_id DESC LIMIT 5, 3
+  rows=3 fields=1
+  | '7'
+  | '6'
+  | '5'
+> SELECT post_id FROM posts LIMIT 10, 5
+  rows=2 fields=1
+  | '11'
+  | '12'
+> SELECT post_id FROM posts LIMIT 20
+  rows=12 fields=1
+  | '1'
+  | '2'
+  | '3'
+  | '4'
+  | '5'
+  | '6'
+  | '7'
+  | '8'
+  | '9'
+  | '10'
+  | '11'
+  | '12'
+> SELECT SQL_BIG_RESULT post_id FROM posts WHERE poster_id = 2 AND topic_id != 3
+  rows=4 fields=1
+  | '1'
+  | '3'
+  | '7'
+  | '9'
+> SELECT HIGH_PRIORITY STRAIGHT_JOIN u.username FROM posts p, users u WHERE p.poster_id = u.user_id AND p.post_id = 4
+  rows=1 fields=1
+  | 'admin'
+> INSERT INTO sessions VALUES ('8ddf878039b70767c4a5bcf4f0c4f65e', 1, 1009000000, 1009000500, '7f000001')
+  ok affected=1 insert_id=0
+> INSERT INTO sessions VALUES ('fac989447cad2edbc89fbcba70003b36', 2, 1009000000, 1009009000, '7f000001')
+  ok affected=1 insert_id=0
+> UPDATE sessions SET session_time = 1009009999 WHERE session_id = '8ddf878039b70767c4a5bcf4f0c4f65e'
+  ok affected=1 insert_id=0
+> UPDATE sessions SET session_time = 1009009999 WHERE session_id = '8ddf878039b70767c4a5bcf4f0c4f65e'
+  ok affected=0 insert_id=0
+> DELETE FROM sessions WHERE session_time < 1009009500
+  ok affected=1 insert_id=0
+> SELECT session_user_id, session_ip FROM sessions
+  rows=1 fields=2
+  | '1' | '7f000001'
+> CREATE TABLE counter (page varchar(100) NOT NULL, hits int unsigned NOT NULL default 0, PRIMARY KEY (page))
+  ok affected=0 insert_id=0
+> SELECT page, hits FROM counter ORDER BY hits DESC, page
+  rows=3 fields=2
+  | '/' | '3'
+  | '/about.php' | '1'
+  | '/index.php' | '1'
+> CREATE TABLE gb (id int NOT NULL auto_increment PRIMARY KEY, name varchar(50) NOT NULL, msg text NOT NULL, added datetime NOT NULL)
+  ok affected=0 insert_id=0
+> SELECT id, name, LENGTH(msg), DATE_FORMAT(added, '%M %e, %Y at %l:%i %p') AS d FROM gb ORDER BY added DESC LIMIT 3
+  rows=3 fields=4
+  | '5' | 'user4' | '11' | 'December 24, 2001 at 10:04 AM'
+  | '4' | 'user3' | '300' | 'December 23, 2001 at 10:03 AM'
+  | '3' | 'user2' | '22' | 'December 22, 2001 at 10:02 AM'
+> SELECT COUNT(*), MIN(added), MAX(added), TO_DAYS(MAX(added)) - TO_DAYS(MIN(added)) FROM gb
+  rows=1 fields=4
+  | '5' | '2001-12-20 10:00:00' | '2001-12-24 10:04:00' | '4'
+> SELECT id, msg FROM gb WHERE msg LIKE '%\\%' OR msg LIKE '%"%'
+  rows=1 fields=2
+  | '3' | '<b>bold</b> & "quotes"'
+> SELECT id FROM gb WHERE UPPER(msg) LIKE '%CAFÉ%'
+  rows=1 fields=1
+  | '5'
+> SELECT id, WEEK(added), DAYOFWEEK(added), YEAR(added), MONTHNAME(added) FROM gb
+  rows=5 fields=5
+  | '1' | '51' | '5' | '2001' | 'December'
+  | '2' | '51' | '6' | '2001' | 'December'
+  | '3' | '51' | '7' | '2001' | 'December'
+  | '4' | '52' | '1' | '2001' | 'December'
+  | '5' | '52' | '2' | '2001' | 'December'
+> SELECT id FROM gb WHERE added > DATE_SUB('2001-12-24 00:00:00', INTERVAL 2 DAY) AND added < '2001-12-24'
+  rows=2 fields=1
+  | '3'
+  | '4'
+> SELECT name, IF(LENGTH(msg) > 20, CONCAT(LEFT(msg, 20), '...'), msg) AS short FROM gb ORDER BY id
+  rows=5 fields=2
+  | 'user0' | 'Hello, world!'
+  | 'user1' | 'It's great\nreally'
+  | 'user2' | '<b>bold</b> & "quote...'
+  | 'user3' | 'xxxxxxxxxxxxxxxxxxxx...'
+  | 'user4' | 'Ümläut café'
+> SELECT username FROM users WHERE username REGEXP '^[a-b]' ORDER BY username
+  rows=3 fields=1
+  | 'admin'
+  | 'Anonymous'
+  | 'bob'
+> SELECT username, user_email FROM users WHERE user_email IS NULL OR user_email = ''
+  rows=2 fields=2
+  | 'Anonymous' | NULL
+  | 'bob' | NULL
+> SELECT CONCAT(username, ' <', IFNULL(user_email, 'none'), '>') FROM users ORDER BY user_id
+  rows=3 fields=1
+  | 'admin <admin@example.com>'
+  | 'Anonymous <none>'
+  | 'bob <none>'
+> SELECT ELT(user_level + 1, 'user', 'admin') AS role, username FROM users
+  rows=3 fields=2
+  | 'admin' | 'admin'
+  | 'user' | 'Anonymous'
+  | 'user' | 'bob'
+> DELETE FROM posts WHERE poster_id = 2 LIMIT 2
+  ok affected=2 insert_id=0
+> SELECT COUNT(*) FROM posts
+  rows=1 fields=1
+  | '10'
+> OPTIMIZE TABLE posts
+  rows=1 fields=4
+  | 'test.posts' | 'optimize' | 'status' | 'OK'
+  users: MyISAM Dynamic rows=3 avg=48 data=144 max=4294967295 index=3072 free=0 auto='4'
+  posts: MyISAM Dynamic rows=10 avg=60 data=600 max=4294967295 index=5120 free=0 auto='13'
+  sessions: MyISAM Fixed rows=1 avg=52 data=104 max=223338299391 index=3072 free=52 auto=NULL
+  counter: MyISAM Dynamic rows=3 avg=20 data=60 max=4294967295 index=2048 free=0 auto=NULL
+  gb: MyISAM Dynamic rows=5 avg=98 data=492 max=4294967295 index=2048 free=0 auto='6'

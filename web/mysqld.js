@@ -309,7 +309,7 @@
     NONEXISTING_GRANT: 1141, TABLEACCESS_DENIED: 1142, WRONG_COLUMN_NAME: 1166, WRONG_KEY_COLUMN: 1167,
     BLOB_KEY_WITHOUT_LENGTH: 1170, PRIMARY_CANT_HAVE_NULL: 1171, TOO_MANY_ROWS: 1172, REQUIRES_PRIMARY_KEY: 1173,
     KEY_DOES_NOT_EXITS: 1176, CHECK_NOT_IMPLEMENTED: 1178, CANT_DO_THIS_DURING_AN_TRANSACTION: 1179,
-    NO_PERMISSION_TO_CREATE_USER: 1211, NO_SUCH_TABLE: 1146, FILE_EXISTS_ERROR: 1086, NOT_ALLOWED_COMMAND: 1148, FILE_NOT_FOUND: 1017, LOAD_INFO: 1087, WRONG_SUB_KEY: 1089, NO_TABLES_USED: 1096, TOO_BIG_SET: 1097, UNION_TABLES_IN_DIFFERENT_DIR: 1212, SYNTAX: 1149,
+    NO_PERMISSION_TO_CREATE_USER: 1211, NO_SUCH_TABLE: 1146, TABLE_CANT_HANDLE_BLOB: 1163, TABLE_CANT_HANDLE_AUTO_INCREMENT: 1164, TABLE_CANT_HANDLE_FULLTEXT: 1214, FILE_EXISTS_ERROR: 1086, NOT_ALLOWED_COMMAND: 1148, FILE_NOT_FOUND: 1017, LOAD_INFO: 1087, WRONG_SUB_KEY: 1089, NO_TABLES_USED: 1096, TOO_BIG_SET: 1097, UNION_TABLES_IN_DIFFERENT_DIR: 1212, SYNTAX: 1149,
   };
   // "You have an error in your SQL syntax near '...' at line N"
   function parseError(rest, line) {
@@ -5824,6 +5824,12 @@
   // new row reuses the most recently deleted position.
   // ---------------------------------------------------------------------------
   const HA_NOSAME = 1, HA_NULL_PART_KEY = 2, HA_FULLTEXT = 4;
+  const MI_MIN_BLOCK_LENGTH = 20, MI_DYN_ALIGN_SIZE = 4;
+  // _mi_find_writepos(): a new block for a packed row of length l
+  const blockLength = (l) => {
+    const b = l + 3 + (l >= 65520 - 3 ? 1 : 0);
+    return b < MI_MIN_BLOCK_LENGTH ? MI_MIN_BLOCK_LENGTH : (b + MI_DYN_ALIGN_SIZE - 1) & ~(MI_DYN_ALIGN_SIZE - 1);
+  };
   class TableShare {
     // def: { fields: [coldef], keys: [{ name, type, parts: [{ field, length }] }], options }
     constructor(db, name, def) {
@@ -5894,6 +5900,7 @@
       this.slots[pos] = rec;
       this.count++;
       this.indexAdd(pos, rec);
+      this.placeBlock(pos, rec);
       return pos;
     }
     deleteRow(pos) {
@@ -5906,8 +5913,9 @@
       this.indexRemove(pos, this.slots[pos]);
       this.slots[pos] = rec;
       this.indexAdd(pos, rec);
+      this.placeBlock(pos, rec);
     }
-    truncate() { this.slots = []; this.free = []; this.count = 0; this.indexes = null; }
+    truncate() { this.slots = []; this.free = []; this.count = 0; this.indexes = null; this.blocks = null; }
     // unique key lookup: a string that is equal for values MySQL's key compares as equal
     keyString(key, rec) {
       let s = '';
@@ -5971,18 +5979,88 @@
       const nulls = this.fields.filter((f) => f.nullable).length + (this.pack_record ? 0 : 1);
       return ((nulls + 7) >> 3) + this.fields.reduce((s, f) => s + f.pack_length(), 0);
     }
+    // the size of the data file (.MYD): fixed rows, or the blocks of
+    // packed rows (deleted blocks stay in the file)
     dataLength() {
+      if (!this.pack_record) return this.slots.length * this.reclength();
+      this.syncBlocks();
       let n = 0;
-      for (const { rec } of this.scan()) {
-        if (!this.pack_record) { n += this.reclength(); continue; }
-        let l = 3;
-        this.fields.forEach((f, i) => { const v = rec[i]; l += typeof v === 'string' ? v.length + (f.flags & F.BLOB ? 4 : 1) : f.pack_length(); });
-        n += Math.max(20, l);
-      }
+      for (let i = 0; i < this.slots.length; i++) n += this.blocks[i] || 0;
       return n;
     }
-    scan_time() { return this.dataLength() / 4096 + 1; }
-    touch() { this.update_time = nowSeconds(); }
+    dataFree() {
+      if (!this.pack_record) return this.free.length * this.reclength();
+      this.syncBlocks();
+      return this.free.reduce((n, pos) => n + (this.blocks[pos] || 0), 0);
+    }
+    syncBlocks() {
+      if (!this.blocks) this.blocks = [];
+      for (let i = 0; i < this.slots.length; i++) if (this.blocks[i] === undefined) this.blocks[i] = this.slots[i] ? blockLength(this.rowLength(this.slots[i])) : MI_MIN_BLOCK_LENGTH;
+    }
+    // a row is written (or rewritten) at pos: reuse its block, growing it if needed
+    placeBlock(pos, rec) {
+      if (!this.pack_record) return;
+      this.syncBlocks();
+      const need = blockLength(this.rowLength(rec));
+      if (!(this.blocks[pos] >= need)) this.blocks[pos] = need;
+    }
+    // ha_myisam create(): how _mi_rec_pack() stores each column
+    packInfo() {
+      if (this._pack) return this._pack;
+      const info = [];
+      let packed = 0;
+      this.fields.forEach((f, i) => {
+        const len = f.pack_length();
+        let type;
+        if (f.flags & F.BLOB) type = 'blob';
+        else if (![T.DECIMAL, T.TIMESTAMP, T.STRING, T.ENUM].includes(f.real_type())) type = 'zero';
+        else if (len <= 3 || f.zerofill) type = 'normal';
+        else type = f.real_type() === T.STRING ? 'end' : 'pre';
+        if (type !== 'normal') packed++;
+        info.push({ type, f, i, len });
+      });
+      if ((packed & 7) === 1) {
+        for (let k = info.length - 1; k >= 0; k--) if (info[k].type === 'zero' && info[k].len === 1) { info[k].type = 'normal'; packed--; break; }
+      }
+      const nullBytes = (this.fields.filter((f) => f.nullable).length + 7) >> 3;
+      return (this._pack = { info, bits: (packed + 7) >> 3, nullBytes });
+    }
+    // _mi_rec_pack(): the packed length of a row
+    rowLength(rec) {
+      const { info, bits, nullBytes } = this.packInfo();
+      let l = nullBytes + bits;
+      for (const { type, f, i, len } of info) {
+        const v = rec[i];
+        if (type === 'normal') l += len;
+        else if (type === 'blob') { if (v !== null && v.length) l += f.packlength + v.length; }
+        else if (type === 'zero') { if (!(v === null || v === 0n || (v === 0 && !Object.is(v, -0)))) l += len; }
+        else {
+          // NULL strings are spaces; a NULL DECIMAL is "0" (Field::reset())
+          const n = v === null ? (type === 'pre' ? 1 : 0) : type === 'end' ? v.length : v.replace(/^ +/, '').length;
+          const packedLen = n + 1 + (len > 255 && n > 127 ? 1 : 0);
+          l += packedLen < len ? packedLen : len;
+        }
+      }
+      return l;
+    }
+    scan_time() {
+      if (this.options.engine === 'HEAP') return (this.count + this.free.length) / 20 + 10;
+      return this.dataLength() / 4096 + 1;
+    }
+    // a write: mi_lock_database() marks the table changed and not analyzed
+    touch() {
+      this.update_time = nowSeconds();
+      this.state_changed = this.not_analyzed = this.not_optimized_keys = true;
+    }
+    // OPTIMIZE/REPAIR rewrite the data file without the deleted rows
+    compact() {
+      const rows = [...this.scan()].map((r) => r.rec);
+      this.slots = rows;
+      this.free = [];
+      this.count = rows.length;
+      this.indexes = null;
+      this.blocks = null;
+    }
   }
   // normalized key part value for unique checks
   function keyNorm(f, v, len) {
@@ -6041,7 +6119,9 @@
   }
   function shareToJSON(sh) {
     return JSON.stringify({ fields: sh.def.fields, keys: sh.def.keys, options: sh.options, auto_increment: String(sh.auto_increment),
-      create_time: sh.create_time, update_time: sh.update_time, defaults: sh.record.map((v) => { const e = encodeValue(v); return e instanceof Uint8Array ? { s: bytesToStr(e) } : e; }), free: sh.free, nslots: sh.slots.length });
+      create_time: sh.create_time, update_time: sh.update_time, check_time: sh.check_time || 0,
+      blocks: sh.pack_record && sh.blocks ? sh.blocks : undefined,
+      state: [sh.state_changed, sh.not_analyzed, sh.not_optimized_keys, sh.not_sorted_pages].map(Number), defaults: sh.record.map((v) => { const e = encodeValue(v); return e instanceof Uint8Array ? { s: bytesToStr(e) } : e; }), free: sh.free, nslots: sh.slots.length });
   }
   function shareFromJSON(db, name, json) {
     const d = JSON.parse(json);
@@ -6049,6 +6129,9 @@
     sh.auto_increment = Number(d.auto_increment);
     sh.record = d.defaults.map((v) => (v && typeof v === 'object' ? v.s : decodeValue(v)));
     sh.free = d.free || [];
+    sh.check_time = d.check_time || 0;
+    if (d.blocks) sh.blocks = d.blocks;
+    if (d.state) [sh.state_changed, sh.not_analyzed, sh.not_optimized_keys, sh.not_sorted_pages] = d.state.map(Boolean);
     sh.slots = new Array(d.nslots || 0).fill(null);
     return sh;
   }
@@ -7390,6 +7473,13 @@
   const KEEP_FLAGS = F.NOT_NULL | F.UNSIGNED | F.ZEROFILL | F.BINARY | F.AUTO_INCREMENT | F.BLOB;
   const BLOB_PACK = { [T.TINY_BLOB]: 1, [T.BLOB]: 2, [T.MEDIUM_BLOB]: 3, [T.LONG_BLOB]: 4 };
   const ENGINES = { MYISAM: 'MyISAM', HEAP: 'HEAP', ISAM: 'ISAM', MRG_MYISAM: 'MRG_MyISAM' };
+  // what the handlers can't do (handler::option_flag(), max_keys())
+  const ENGINE_LIMITS = {
+    MyISAM: { maxKeys: 32 },
+    HEAP: { maxKeys: 32, noBlobs: true, noAuto: true, noNullKey: true, noFulltext: true },
+    ISAM: { maxKeys: 16, noBlobKey: true, noNullKey: true, noFulltext: true },
+    MRG_MyISAM: { maxKeys: 32, noFulltext: true },
+  };
 
   function calc_pack_length(type, length) {
     switch (type) {
@@ -7550,9 +7640,12 @@
       if ((cf.flags & F.BLOB) || (cf.type === T.VAR_STRING && options.row_format !== 'FIXED')) pack = true;
       for (let j = 0; j < i; j++) if (strcaseeq(cfs[j].name, cf.name)) throw myError(ER.DUP_FIELDNAME, cf.name);
     });
+    const engine = ENGINES[options.type] || 'MyISAM', limits = ENGINE_LIMITS[engine];
     let auto_increment = cfs.filter((cf) => cf.flags & F.AUTO_INCREMENT).length;
     if (auto_increment > 1) throw myError(ER.WRONG_AUTO_KEY);
-    if (keySpecs.length > MAX_KEY) throw myError(ER.TOO_MANY_KEYS, MAX_KEY);
+    if (auto_increment && limits.noAuto) throw myError(ER.TABLE_CANT_HANDLE_AUTO_INCREMENT);
+    if (limits.noBlobs && cfs.some((cf) => cf.flags & F.BLOB)) throw myError(ER.TABLE_CANT_HANDLE_BLOB);
+    if (keySpecs.length > limits.maxKeys) throw myError(ER.TOO_MANY_KEYS, limits.maxKeys);
     // PRIMARY KEY first, then UNIQUE keys (each one in front), other keys last
     let primary = null;
     const inOrder = [];
@@ -7570,18 +7663,23 @@
     for (const key of inOrder) {
       const out = { name: null, type: key.type, parts: [] };
       let key_length = 0;
+      if (key.type === 'FULLTEXT' && limits.noFulltext) throw myError(ER.TABLE_CANT_HANDLE_FULLTEXT);
       key.cols.forEach((col, column_nr) => {
         const field = cfs.findIndex((cf) => strcaseeq(cf.name, col.name));
         if (field < 0) throw myError(ER.KEY_COLUMN_DOES_NOT_EXIST, col.name);
         const cf = cfs[field];
         let colLen = col.length || 0;
         if (cf.flags & F.BLOB) {
+          if (limits.noBlobKey) throw myError(ER.BLOB_USED_AS_KEY, col.name);
           if (!colLen) {
             if (key.type === 'FULLTEXT') colLen = 1;
             else throw myError(ER.BLOB_KEY_WITHOUT_LENGTH, col.name);
           }
         }
-        if (!(cf.flags & F.NOT_NULL) && key.type === 'PRIMARY') throw myError(ER.PRIMARY_CANT_HAVE_NULL);
+        if (!(cf.flags & F.NOT_NULL)) {
+          if (key.type === 'PRIMARY') throw myError(ER.PRIMARY_CANT_HAVE_NULL);
+          if (limits.noNullKey) throw myError(ER.NULL_COLUMN_IN_INDEX, col.name);
+        }
         if (cf.flags & F.AUTO_INCREMENT) auto_increment--;
         let length = cf.pack_length;
         if (colLen) {
@@ -7613,7 +7711,7 @@
       if (f.type === T.ENUM) f.flags |= F.ENUM;
       if (f.type === T.SET) f.flags |= F.SET;
     }
-    const opts = Object.assign({}, options, { pack_record: pack, engine: ENGINES[options.type] || 'MyISAM' });
+    const opts = Object.assign({}, options, { pack_record: pack, engine });
     delete opts.type;
     return { fields, keys, options: opts };
   }
@@ -8122,8 +8220,9 @@
       key.parts.forEach((p, j) => {
         const f = share.fields[p.field];
         // rec_per_key is only known for the last part of a unique key without NULLs
-        const known = (key.flags & (HA_NOSAME | HA_NULL_PART_KEY)) === HA_NOSAME && j === key.parts.length - 1;
-        rows.push([share.name, key.flags & HA_NOSAME ? '0' : '1', key.name, String(j + 1), f.field_name, 'A',
+        const heap = share.options.engine === 'HEAP';
+        const known = !heap && (key.flags & (HA_NOSAME | HA_NULL_PART_KEY)) === HA_NOSAME && j === key.parts.length - 1;
+        rows.push([share.name, key.flags & HA_NOSAME ? '0' : '1', key.name, String(j + 1), f.field_name, heap ? null : 'A',
           known ? String(share.rows) : null, p.length && p.length !== f.pack_length() ? String(p.length) : null, null,
           key.flags & HA_FULLTEXT ? 'FULLTEXT' : '']);
       });
@@ -8135,7 +8234,7 @@
     const data = share.dataLength();
     const fixed = !share.pack_record;
     const rec = share.reclength();
-    const free = fixed ? share.free.length * rec : 0;
+    const free = share.dataFree();
     const opts = [];
     const o = share.options;
     if (o.min_rows) opts.push('min_rows=' + o.min_rows);
@@ -8146,7 +8245,7 @@
     if (o.DELAY_KEY_WRITE_SYM) opts.push('delay_key_write=1');
     if (o.row_format && o.row_format !== 'DEFAULT') opts.push('row_format=' + { FIXED: 'FIXED', DYNAMIC: 'DYNAMIC', COMPRESSED: 'COMPRESSED' }[o.row_format]);
     const time = (t) => (t ? fmtDateTime(tmToTime(THD.tz.localtime(t))) : null);
-    return [share.name, share.options.engine, fixed ? 'Fixed' : 'Dynamic', String(rows), String(rows ? Math.floor(data / rows) : 0), String(data),
+    return [share.name, share.options.engine, fixed ? 'Fixed' : 'Dynamic', String(rows), String(rows ? Math.floor((data - free) / rows) : 0), String(data),
       fixed ? String(BigInt(rec) * 4294967296n - 1n) : '4294967295', String(1024 * (1 + (rows ? share.keys.length : 0))), String(free),
       share.auto_field >= 0 ? String(share.auto_increment) : null, time(share.create_time), time(share.update_time), null,
       opts.join(' '), o.comment || ''];
@@ -8854,10 +8953,39 @@
         const name = (db || '') + '.' + t.table;
         const share = db ? this.getTable(db, t.table) : null;
         if (!share) { rows.push([name, st.op, 'error', "Table '" + name + "' doesn't exist"]); continue; }
-        rows.push([name, st.op, 'status', st.op === 'check' || st.op === 'repair' || share.changedSinceCheck ? 'OK' : 'Table is already up to date']);
+        rows.push([name, st.op, 'status', adminTable(share, st) ? 'OK' : 'Table is already up to date']);
+        this.dirty(share);
       }
       return { fields: [strCol('Table', NAME_LEN * 2), strCol('Op', 10), strCol('Msg_type', 10), strCol('Msg_text', 255)], rows };
     }
+  }
+
+  // ha_myisam::check()/analyze()/repair(): true when something was done
+  function adminTable(sh, st) {
+    const done = () => { sh.state_changed = sh.not_analyzed = false; sh.check_time = nowSeconds(); return true; };
+    switch (st.op) {
+      case 'check':
+        if (st.opts.includes('FAST_SYM') || (st.opts.includes('CHANGED') && !sh.state_changed)) return false;
+        return done();
+      case 'analyze':
+        if (!sh.not_analyzed) return false;
+        sh.not_analyzed = false;
+        return true;
+      case 'repair':
+        sh.compact();
+        sh.not_sorted_pages = true;
+        sh.not_optimized_keys = false;
+        return done();
+      case 'optimize': {
+        let did = false;
+        if (sh.free.length) { sh.compact(); sh.not_sorted_pages = true; sh.not_optimized_keys = false; did = true; }
+        if (sh.not_sorted_pages) { sh.not_sorted_pages = false; did = true; }
+        if (sh.not_analyzed) { sh.not_analyzed = false; did = true; }
+        sh.state_changed = false;
+        return did;
+      }
+    }
+    return true;
   }
 
   // EXPLAIN SELECT: the join plan

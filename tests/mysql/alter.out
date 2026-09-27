@@ -1,0 +1,126 @@
+> CREATE TABLE al (id int NOT NULL auto_increment PRIMARY KEY, name char(10) NOT NULL, n int)
+  ok affected=0 insert_id=0
+> INSERT INTO al (name, n) VALUES ('a', 1), ('b', 2), ('c', NULL)
+  ok affected=3 insert_id=0
+> ALTER TABLE al ADD email varchar(40) NOT NULL default 'none' AFTER name
+  ok affected=3 insert_id=0
+> SELECT * FROM al
+  rows=3 fields=4
+  | '1' | 'a' | 'none' | '1'
+  | '2' | 'b' | 'none' | '2'
+  | '3' | 'c' | 'none' | NULL
+> ALTER TABLE al ADD COLUMN first_col tinyint FIRST, ADD INDEX nidx (n)
+  ok affected=3 insert_id=0
+> SHOW CREATE TABLE al
+  rows=1 fields=2
+  | 'al' | 'CREATE TABLE `al` (
+  `first_col` tinyint(4) default NULL,
+  `id` int(11) NOT NULL auto_increment,
+  `name` varchar(10) NOT NULL default '',
+  `email` varchar(40) NOT NULL default 'none',
+  `n` int(11) default NULL,
+  PRIMARY KEY  (`id`),
+  KEY `nidx` (`n`)
+) TYPE=MyISAM'
+> ALTER TABLE al CHANGE n num bigint unsigned NOT NULL
+  ok affected=3 insert_id=0
+> SELECT * FROM al
+  rows=3 fields=5
+  [first_col] table='al' type=int len=4 flags='' max=0 num=1 blob=0
+  [id] table='al' type=int len=11 flags='not_null primary_key auto_increment' max=1 num=1 blob=0
+  [name] table='al' type=string len=10 flags='not_null' max=1 num=0 blob=0
+  [email] table='al' type=string len=40 flags='not_null' max=4 num=0 blob=0
+  [num] table='al' type=int len=20 flags='not_null multiple_key unsigned' max=1 num=1 blob=0
+  | NULL | '1' | 'a' | 'none' | '1'
+  | NULL | '2' | 'b' | 'none' | '2'
+  | NULL | '3' | 'c' | 'none' | '0'
+> ALTER TABLE al MODIFY name varchar(3) binary
+  ok affected=3 insert_id=0
+> SELECT name FROM al WHERE name = 'A'
+  rows=0 fields=1
+> ALTER TABLE al ALTER email SET DEFAULT 'x@y', ALTER num DROP DEFAULT
+  ok affected=3 insert_id=0
+> INSERT INTO al (name) VALUES ('d')
+  ok affected=1 insert_id=4
+> SELECT * FROM al
+  rows=4 fields=5
+  | NULL | '1' | 'a' | 'none' | '1'
+  | NULL | '2' | 'b' | 'none' | '2'
+  | NULL | '3' | 'c' | 'none' | '0'
+  | NULL | '4' | 'd' | 'x@y' | '0'
+> ALTER TABLE al DROP first_col, DROP INDEX nidx, ADD UNIQUE (email)
+  ERR 1062: Duplicate entry 'none' for key 2
+> ALTER IGNORE TABLE al ADD UNIQUE (email)
+  ok affected=4 insert_id=0
+  key PRIMARY 1 id unique=1 sub=NULL
+  key email 1 email unique=1 sub=NULL
+  key nidx 1 num unique=0 sub=NULL
+> ALTER TABLE al DROP nosuch
+  ERR 1091: Can't DROP 'nosuch'. Check that column/key exists
+> ALTER TABLE al DROP INDEX nosuch
+  ERR 1091: Can't DROP 'nosuch'. Check that column/key exists
+> ALTER TABLE al CHANGE nosuch x int
+  ERR 1054: Unknown column 'nosuch' in 'al'
+> ALTER TABLE al ADD x int AFTER nosuch
+  ERR 1054: Unknown column 'nosuch' in 'al'
+> ALTER TABLE al DROP PRIMARY KEY
+  ERR 1075: Incorrect table definition; There can only be one auto column and it must be defined as a key
+> ALTER TABLE al MODIFY id int NOT NULL, DROP PRIMARY KEY
+  ok affected=2 insert_id=0
+> DESCRIBE al
+  rows=5 fields=6
+  | 'first_col' | 'tinyint(4)' | 'YES' | '' | NULL | ''
+  | 'id' | 'int(11)' | '' | '' | '0' | ''
+  | 'name' | 'char(3) binary' | 'YES' | '' | NULL | ''
+  | 'email' | 'varchar(40)' | '' | 'PRI' | 'x@y' | ''
+  | 'num' | 'bigint(20) unsigned' | '' | 'MUL' | '0' | ''
+> ALTER TABLE al ORDER BY name DESC
+  ok affected=2 insert_id=0
+> SELECT id, name FROM al
+  rows=2 fields=2
+  | '4' | 'd'
+  | '1' | 'a'
+> ALTER TABLE al RENAME TO al2
+  ok affected=0 insert_id=0
+> SELECT COUNT(*) FROM al2
+  rows=1 fields=1
+  | '2'
+> ALTER TABLE al2 TYPE=HEAP
+  ok affected=2 insert_id=0
+> ALTER TABLE al2 COMMENT='hello', AUTO_INCREMENT=100
+  ok affected=2 insert_id=0
+> SHOW CREATE TABLE al2
+  rows=1 fields=2
+  | 'al2' | 'CREATE TABLE `al2` (
+  `first_col` tinyint(4) default NULL,
+  `id` int(11) NOT NULL default '0',
+  `name` char(3) binary default NULL,
+  `email` varchar(40) NOT NULL default 'x@y',
+  `num` bigint(20) unsigned NOT NULL default '0',
+  UNIQUE KEY `email` (`email`),
+  KEY `nidx` (`num`)
+) TYPE=HEAP COMMENT='hello''
+> CREATE INDEX ni ON al2 (name(2), email)
+  ERR 1121: Column 'name' is used with UNIQUE or INDEX but is not defined as NOT NULL
+> SHOW KEYS FROM al2
+  rows=2 fields=10
+  | 'al2' | '0' | 'email' | '1' | 'email' | NULL | NULL | NULL | NULL | ''
+  | 'al2' | '1' | 'nidx' | '1' | 'num' | NULL | NULL | NULL | NULL | ''
+> DROP INDEX ni ON al2
+  ERR 1091: Can't DROP 'ni'. Check that column/key exists
+> ALTER TABLE al2 DROP id, DROP name, DROP num, DROP email
+  ok affected=2 insert_id=0
+> CREATE TABLE rp (id int NOT NULL auto_increment PRIMARY KEY, code char(3) NOT NULL, v int, UNIQUE KEY code (code))
+  ok affected=0 insert_id=0
+> REPLACE INTO rp (code, v) VALUES ('a', 1)
+  ok affected=1 insert_id=1
+> REPLACE INTO rp (code, v) VALUES ('a', 2)
+  ok affected=2 insert_id=2
+> REPLACE INTO rp (id, code, v) VALUES (1, 'b', 3)
+  ok affected=1 insert_id=1
+> REPLACE INTO rp (id, code, v) VALUES (5, 'b', 4)
+  ok affected=2 insert_id=5
+> REPLACE INTO rp VALUES (6, 'c', 5), (7, 'c', 6), (6, 'd', 7)
+  ok affected=4 insert_id=0
+<br>
+<b>Fatal error</b>:  Call to undefined function:  mysql_info() in <b>/var/www/alter.php</b> on line <b>66</b><br>
