@@ -187,5 +187,24 @@ Pushes to `main` that touch `web/` deploy automatically
 `CLOUDFLARE_API_TOKEN` (a token with *Cloudflare Pages: Edit*) and the variable
 `CLOUDFLARE_ACCOUNT_ID`.
 
-PHP 4.1.1 is released under the PHP License 2.02 (`build/php-4.1.1/LICENSE`).
-sql.js is MIT-licensed (`web/vendor/sqljs/LICENSE`).
+## License
+
+The simulator's own code (patches, `src/`, `web/`, `bin/`, `packages/`) is
+MIT (`LICENSE`). The binaries built from it also contain third-party code under
+its own terms. [`web/licenses/NOTICE.txt`](web/licenses/NOTICE.txt) lists it all,
+and the license texts sit beside it. They are served with the site at
+`/licenses/`. In short:
+
+* **PHP 4.1.1:** PHP License 2.02. This product includes PHP, freely available
+  from http://www.php.net/
+* **Zend Engine 1.1.1:** the patches modify it. Under clause 6 of the PHP
+  License, a modified Zend Engine is governed by the Zend License 0.92, which is
+  the **Q Public License 1.0**. The QPL asks for three things. Modifications
+  ship as patches separate from the original source (`patches/`). Anyone who
+  gets the binaries can get the complete source free (this repository). Code
+  linked with the engine (`src/`) must also be open and freely redistributable,
+  which MIT satisfies. It also means the linked code can't be GPL: the QPL is
+  GPL-incompatible.
+* **Also compiled in:** libbcmath (LGPL 2+), PCRE, expat (MIT), Henry Spencer's
+  regex, the public-domain MySQL 3.23 client library, and Emscripten/musl
+  (MIT). sql.js is MIT.

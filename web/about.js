@@ -32,7 +32,7 @@
       <p>PHP was a beautiful language. It combined the perfect syntax of programming languages like Perl with the power of goto statements.</p>
       <p>Widely respected as one of the most important programming languages to ever exist, PHP is now but a memory. But, we digital archeologists maintain copies of it, so that the ancient knowledge is not lost &mdash; a candle in the dark.</p>
     </div>
-    <p class="about-provenance">Specimen: PHP 4.1.1 &middot; Zend Engine 1.1.1 &middot; December 2001<br>Preserved in WebAssembly. It runs entirely in your browser. &middot; <a class="about-source" href="https://github.com/jbn/simphp" target="_blank" rel="noopener">field notes</a></p>
+    <p class="about-provenance">Specimen: PHP 4.1.1 &middot; Zend Engine 1.1.1 &middot; December 2001<br>Preserved in WebAssembly. It runs entirely in your browser. &middot; <a class="about-source" href="https://github.com/jbn/simphp" target="_blank" rel="noopener">field notes</a> &middot; <a class="about-source" href="licenses/NOTICE.txt" target="_blank" rel="noopener">licenses</a><br>This product includes PHP, freely available from http://www.php.net/</p>
     <form method="dialog" class="about-actions">
       <button class="about-enter" value="enter" autofocus>Enter the archive</button>
     </form>

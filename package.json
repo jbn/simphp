@@ -14,5 +14,5 @@
     "php": "node bin/php411.js",
     "test:mysql": "node tests/mysql-test.js"
   },
-  "license": "SEE LICENSE IN README.md"
+  "license": "MIT"
 }
