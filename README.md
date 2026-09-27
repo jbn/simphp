@@ -67,7 +67,7 @@ build: standard, PCRE, POSIX regex, XML (expat), sessions, **MySQL (bundled
 libmysql 3.23.39)**, bcmath, calendar, ctype and WDDX. POSIX is left out because
 there is no real process table in a browser.
 
-`npm test` runs three checks:
+`npm test` runs four checks:
 
 * **PHP 4.1.1's own test suite** (`tests/run-phpt.js`, `run-tests.php`
   semantics): 101/104 pass. The other 3 produce output *identical to native
@@ -83,7 +83,19 @@ there is no real process table in a browser.
   - CGI requests are included too: GET/POST, multipart uploads, cookies and
     sessions.
   - **All 96 are identical.**
-* **MySQL emulation snapshots** (`tests/mysql-test.js`).
+* **MySQL differential testing** (`tests/mysql-difftest.js`): each of 20
+  scripts in `tests/mysql/` runs on native PHP 4.1.1 against a **real MySQL
+  3.23.49 server** built from the original sources (`reference/mysql.Dockerfile`)
+  and on the wasm build against the emulated server, and stdout is compared
+  byte for byte.
+  - The scripts cover result metadata (`mysql_field_*`, including table
+    aliases), column types and conversions, dates, string functions, collation,
+    `LIKE`/`REGEXP`, grouping, joins and row order, `EXPLAIN`, affected rows and
+    insert ids, `ALTER TABLE`, `LOAD DATA`/`INTO OUTFILE`, error numbers and
+    messages, `SHOW`, and several databases at once.
+  - **All 20 are identical.** Their outputs are also kept as snapshots
+    (`tests/mysql/*.out`), which `tests/mysql-test.js` checks quickly and
+    without Docker.
 
 Getting from "it compiles" to "byte-identical" meant reproducing the *platform*
 PHP 4.1.1 ran on, not just its source. Each row below was found by differential
@@ -116,24 +128,65 @@ All changes to PHP itself are small `#ifdef __EMSCRIPTEN__` patches in
 
 PHP's real mysql extension and client library connect to `/tmp/mysql.sock` (or
 `127.0.0.1:3306`), and `web/mysqld.js` answers over the MySQL 3.23 wire
-protocol. Queries run on SQLite (sql.js) after dialect translation, and the
-server reproduces what scripts can observe of MySQL 3.23:
+protocol. The server is a port of MySQL 3.23.49 itself, not a translation to
+another database. Its comments name the MySQL source file for each part:
 
-* auto-increment on `NULL`/`0`/`''`;
-* implicit defaults for `NOT NULL` columns, value truncation and clipping,
-  `ENUM`/`SET`, `DECIMAL` formatting and `TIMESTAMP(14)` auto-update;
-* case-insensitive string columns and "changed rows" `UPDATE` counts;
-* `DELETE FROM t` reporting 0 rows;
-* `db.table` names, with or without a selected database, and reads that join
-  tables of several databases;
-* `SHOW`/`DESCRIBE`/`SHOW CREATE TABLE`, and MySQL functions (`NOW`,
-  `DATE_FORMAT`, `PASSWORD`, `CONCAT`, ...);
-* MySQL error numbers and messages (`1062 Duplicate entry '1' for key 1`, ...).
+* the lexer and grammar, so syntax errors quote the same text;
+* the Item classes that type, evaluate and format expressions, including the
+  result metadata PHP reads (`mysql_field_len()`, flags, decimals), glibc's
+  `printf` rounding and i386 x87 arithmetic where MySQL's output depends on
+  them;
+* the Field classes that store values: clipping, truncation, `ENUM`/`SET`,
+  `DECIMAL`, dates and `TIMESTAMP`;
+* the optimizer, as far as it decides what scripts see: const tables,
+  `ref`/`eq_ref`, the range optimizer with MyISAM's row estimates, the join
+  cache and per-row ranges, filesort, `GROUP BY` through temporary tables, and
+  `MIN()`/`MAX()` read from indexes. The same rows come back in the same order
+  as on the real server, even without `ORDER BY`. `EXPLAIN` shows the plan;
+* `INSERT`/`REPLACE`/`UPDATE`/`DELETE` with auto-increment, affected rows,
+  insert ids and info strings, `ALTER TABLE`, `LOAD DATA [LOCAL] INFILE` and
+  `SELECT ... INTO OUTFILE` (on the simulated disk), `SHOW` in all its forms,
+  user variables, `SET` options, `LOCK TABLES`, and the table maintenance
+  statements;
+* error numbers and messages (MySQL's own `errmsg.txt`).
 
-Databases are stored as `/var/lib/mysql/<db>.sqlite` on the simulated disk. A
-fresh server has the `mysql` and `test` databases, and any user/password is
-accepted. It is an emulation, so SQL outside the common subset (`MATCH ...
-AGAINST`, for example) may not behave exactly like MySQL.
+Each database is stored as `/var/lib/mysql/<db>.sqlite` on the simulated disk;
+SQLite (sql.js) only holds the rows. Databases saved by earlier versions of
+the simulator are converted when loaded. A fresh server has the `mysql` and
+`test` databases of `mysql_install_db`. The server runs in the same time zone
+(`TZ`) as the simulated machine.
+
+The expected results in `tests/mysql/` all come from the real 3.23.49 server.
+Where the corpus doesn't reach, the emulator follows the 3.23.49 source.
+Nothing relies on the manual alone.
+
+What differs from a real 3.23.49 server:
+
+* **Accounts**: any user and password are accepted, and nothing is access
+  checked. `GRANT`/`REVOKE`/`SET PASSWORD` succeed without effect. This is
+  deliberate: a simulator has no administrator to create accounts, so scripts
+  written for their hosting account still connect. `SHOW GRANTS` reads the
+  grant tables.
+* **Index statistics**: MyISAM's key statistics from `ANALYZE`, `OPTIMIZE`,
+  `REPAIR` and `ALTER TABLE` are not modeled. After those statements, a real
+  server's `SHOW INDEX` cardinalities, and the plans (and so the unordered row
+  order) that depend on them, can differ.
+* **Row estimates** model an index that fits in one B-tree page, which is
+  exact for small tables. On large tables MySQL's estimates, and so its plan
+  choices, can differ.
+* **Full-text search**: `FULLTEXT` indexes can be created, but
+  `MATCH ... AGAINST` is not implemented.
+* **Concurrency**: connections never wait for each other. Another
+  connection's `LOCK TABLES` doesn't block. `GET_LOCK()` on a lock another
+  connection holds returns 0 at once, instead of after its timeout.
+  `INSERT DELAYED` is a plain `INSERT`.
+* **Server status**: `SHOW STATUS` counts `Com_*`, `Questions`,
+  `Connections` and uptime, and the other counters stay 0. Replication
+  statements (`RESET MASTER`, `SLAVE STOP`, ...) are accepted and do nothing.
+  `BACKUP TABLE` writes the simulator's own file format, which only
+  `RESTORE TABLE` reads.
+* `HEAP` tables are kept on disk like `MyISAM` tables, where a real server
+  empties them on restart.
 
 ### Known differences
 
@@ -162,8 +215,9 @@ web/                   the app: index.html + app.js (classic), fiddle.html + fid
 bin/php411.js          PHP 4.1.1 in your terminal: node bin/php411.js -q script.php
 packages/simphp/       the engine as an npm library for Node and Web Workers (see its README)
 bin/serve.js           static server for web/
-tests/                 phpt runner, differential tests (+ corpus), MySQL snapshots
+tests/                 phpt runner, differential tests (+ corpus), MySQL differential tests (+ snapshots)
 reference/Dockerfile   native PHP 4.1.1 for i386 Linux, the ground truth
+reference/mysql.Dockerfile  + a real MySQL 3.23.49 server, the MySQL ground truth
 ```
 
 ## Building
@@ -171,7 +225,7 @@ reference/Dockerfile   native PHP 4.1.1 for i386 Linux, the ground truth
 ```
 ./build.sh          # downloads php-4.1.1.tar.gz and emsdk on first run (~3 min)
 ./build.sh link     # relink only
-npm test            # phpt + MySQL + differential tests (the last needs Docker)
+npm test            # phpt, MySQL snapshots, then the differential tests (Docker)
 npm run test:pkg    # copy the build into packages/simphp and run its smoke tests
 ```
 

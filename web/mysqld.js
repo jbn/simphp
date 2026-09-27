@@ -309,7 +309,7 @@
     NONEXISTING_GRANT: 1141, TABLEACCESS_DENIED: 1142, WRONG_COLUMN_NAME: 1166, WRONG_KEY_COLUMN: 1167,
     BLOB_KEY_WITHOUT_LENGTH: 1170, PRIMARY_CANT_HAVE_NULL: 1171, TOO_MANY_ROWS: 1172, REQUIRES_PRIMARY_KEY: 1173,
     KEY_DOES_NOT_EXITS: 1176, CHECK_NOT_IMPLEMENTED: 1178, CANT_DO_THIS_DURING_AN_TRANSACTION: 1179,
-    NO_PERMISSION_TO_CREATE_USER: 1211, NO_SUCH_TABLE: 1146, TEXTFILE_NOT_READABLE: 1085, TABLE_CANT_HANDLE_BLOB: 1163, TABLE_CANT_HANDLE_AUTO_INCREMENT: 1164, TABLE_CANT_HANDLE_FULLTEXT: 1214, FILE_EXISTS_ERROR: 1086, NOT_ALLOWED_COMMAND: 1148, FILE_NOT_FOUND: 1017, LOAD_INFO: 1087, WRONG_SUB_KEY: 1089, NO_TABLES_USED: 1096, TOO_BIG_SET: 1097, UNION_TABLES_IN_DIFFERENT_DIR: 1212, SYNTAX: 1149,
+    NO_PERMISSION_TO_CREATE_USER: 1211, NO_SUCH_TABLE: 1146, CANT_OPEN_LIBRARY: 1126, FUNCTION_NOT_DEFINED: 1128, TEXTFILE_NOT_READABLE: 1085, TABLE_CANT_HANDLE_BLOB: 1163, TABLE_CANT_HANDLE_AUTO_INCREMENT: 1164, TABLE_CANT_HANDLE_FULLTEXT: 1214, FILE_EXISTS_ERROR: 1086, NOT_ALLOWED_COMMAND: 1148, FILE_NOT_FOUND: 1017, LOAD_INFO: 1087, WRONG_SUB_KEY: 1089, NO_TABLES_USED: 1096, TOO_BIG_SET: 1097, UNION_TABLES_IN_DIFFERENT_DIR: 1212, SYNTAX: 1149,
   };
   // "You have an error in your SQL syntax near '...' at line N"
   function parseError(rest, line) {
@@ -1616,9 +1616,10 @@
         return { cmd: 'create_index', table, key: { type: kind, name, cols } };
       }
       if (this.is('AGGREGATE_SYM') || this.is('UDF_SYM')) {
-        this.accept('AGGREGATE_SYM'); this.expect('UDF_SYM'); this.ident();
-        this.expect('UDF_RETURNS_SYM'); this.shift(); this.expect('UDF_SONAME_SYM'); this.expect('TEXT_STRING');
-        return { cmd: 'create_function' };
+        this.accept('AGGREGATE_SYM'); this.expect('UDF_SYM');
+        const name = this.ident();
+        this.expect('UDF_RETURNS_SYM'); this.shift(); this.expect('UDF_SONAME_SYM');
+        return { cmd: 'create_function', name, soname: this.expect('TEXT_STRING').str };
       }
       const temporary = this.accept('TEMPORARY');
       this.expect('TABLE_SYM');
@@ -1952,7 +1953,7 @@
         const ifExists = this.is('IF') ? (this.shift(), this.expect('EXISTS'), true) : false;
         return { cmd: 'drop_db', name: this.ident(), ifExists };
       }
-      if (k === 'UDF_SYM') { this.shift(); this.ident(); return { cmd: 'drop_function' }; }
+      if (k === 'UDF_SYM') { this.shift(); return { cmd: 'drop_function', name: this.ident() }; }
       this.fail();
     }
 
@@ -2181,10 +2182,9 @@
       }
       // BACKUP / RESTORE
       if (!this.accept('TABLE_SYM')) this.expect('TABLES');
-      this.tableList();
+      const tables = this.tableList();
       this.expect(k === 'BACKUP_SYM' ? 'TO_SYM' : 'FROM');
-      this.expect('TEXT_STRING');
-      return { cmd: k === 'BACKUP_SYM' ? 'backup' : 'restore' };
+      return { cmd: k === 'BACKUP_SYM' ? 'backup' : 'restore', tables, dir: this.expect('TEXT_STRING').str };
     }
   }
   function hexBytes(hex) {
@@ -9865,6 +9865,11 @@
           return { affected: 0 };
         }
         case 'table_maint': return this.tableMaint(st);
+        case 'backup': case 'restore': return this.backupRestore(st);
+        // (this mysqld is linked statically: dlopen() can't load a UDF)
+        case 'create_function':
+          throw myError(ER.CANT_OPEN_LIBRARY, st.soname, 2, st.soname + ': cannot open shared object file: No such file or directory');
+        case 'drop_function': throw myError(ER.FUNCTION_NOT_DEFINED, st.name);
         case 'load':
           if (st.local) {
             if (!(this.clientFlags & 128)) throw myError(ER.NOT_ALLOWED_COMMAND);
@@ -9906,6 +9911,40 @@
         }
       }
       return { affected: 0 };
+    }
+    // BACKUP TABLE / RESTORE TABLE: the table's files in a directory of the
+    // simulated disk (here the definition and rows in the simulator's format)
+    backupRestore(st) {
+      const srv = this.srv;
+      const rows = [];
+      for (const t of st.tables) {
+        const db = t.db || this.db;
+        const name = (db || '') + '.' + t.table;
+        const frm = absPath(srv, st.dir + '/' + t.table + '.frm'), myd = absPath(srv, st.dir + '/' + t.table + '.MYD');
+        const share = db ? this.getTable(db, t.table) : null;
+        if (st.cmd === 'backup') {
+          if (!share) { rows.push([name, 'backup', 'error', "Table '" + name + "' doesn't exist"]); continue; }
+          let err = srv.fileWrite(frm, shareToJSON(share));
+          if (err) { rows.push([name, 'backup', 'error', 'Failed copying .frm file: errno = ' + err]); continue; }
+          err = srv.fileWrite(myd, JSON.stringify([...share.scan()].map((r) => [r.pos, r.rec.map((v) => { const e = encodeValue(v); return e instanceof Uint8Array ? { s: bytesToStr(e) } : e; })])));
+          rows.push(err ? [name, 'backup', 'error', 'Failed copying .MYD file: errno = ' + err] : [name, 'backup', 'status', 'OK']);
+          continue;
+        }
+        if (share) { rows.push([t.table, 'restore', 'error', 'table exists, will not overwrite on restore']); continue; }
+        const def = srv.fileRead(frm), data = srv.fileRead(myd);
+        if (def === null || !db || !srv.dbs.has(db)) { rows.push([t.table, 'restore', 'error', 'Failed copying .frm file']); continue; }
+        try {
+          const sh = shareFromJSON(db, t.table, def);
+          sh.slots = [];
+          for (const [pos, rec] of data === null ? [] : JSON.parse(data)) sh.slots[pos] = rec.map((v) => (v && typeof v === 'object' ? v.s : decodeValue(v)));
+          sh.count = sh.slots.filter(Boolean).length;
+          sh.free = [];
+          for (let i = 0; i < sh.slots.length; i++) if (!sh.slots[i]) { sh.slots[i] = null; sh.free.push(i); }
+          srv.addTable(sh);
+          rows.push([name, 'restore', 'status', 'OK']);
+        } catch (e) { rows.push([t.table, 'restore', 'error', 'Failed copying .frm file']); }
+      }
+      return { fields: [strCol('Table', NAME_LEN * 2, true), strCol('Op', 10, true), strCol('Msg_type', 10, true), strCol('Msg_text', 255, true)], rows };
     }
     // mysql_admin_table(): CHECK/ANALYZE/REPAIR/OPTIMIZE TABLE
     tableMaint(st) {

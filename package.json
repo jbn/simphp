@@ -8,11 +8,12 @@
     "link": "./build.sh link",
     "start": "node bin/serve.js",
     "deploy": "wrangler pages deploy web --project-name simphp-infinitefun-com --branch main",
-    "test": "node tests/run-phpt.js && node tests/mysql-test.js && node tests/difftest.js",
+    "test": "node tests/run-phpt.js && node tests/mysql-test.js && node tests/difftest.js && node tests/mysql-difftest.js",
     "test:phpt": "node tests/run-phpt.js",
     "test:diff": "node tests/difftest.js",
     "php": "node bin/php411.js",
     "test:mysql": "node tests/mysql-test.js",
+    "test:mysql-diff": "node tests/mysql-difftest.js",
     "test:pkg": "npm --prefix packages/simphp run sync && npm --prefix packages/simphp test"
   },
   "license": "MIT"

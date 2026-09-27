@@ -2,7 +2,10 @@
 // Snapshot tests for the emulated MySQL server (web/mysqld.js), driven through
 // PHP 4.1.1's real mysql extension. Each tests/mysql/*.php runs against a fresh
 // server; its output must match tests/mysql/<name>.out.
-//   node tests/mysql-test.js [--update]
+//   node tests/mysql-test.js
+// The snapshots are the output of native PHP 4.1.1 with a real MySQL 3.23.49
+// server: tests/mysql-difftest.js --update-snapshots writes them (Docker).
+// This runner is the fast check that needs neither.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -11,7 +14,6 @@ const createPHP = require('../web/php.js');
 const initSqlJs = require('../web/vendor/sqljs/sql-wasm.js');
 
 const DIR = path.join(__dirname, 'mysql');
-const update = process.argv.includes('--update');
 
 (async () => {
   const SQL = await initSqlJs({ locateFile: (f) => path.join(__dirname, '../web/vendor/sqljs', f) });
@@ -23,7 +25,11 @@ const update = process.argv.includes('--update');
       files: { ['/var/www/' + f]: fs.readFileSync(path.join(DIR, f)) }, collectFiles: false });
     const got = Buffer.from(r.stdout).toString('latin1');
     const expFile = path.join(DIR, f.replace(/\.php$/, '.out'));
-    if (update || !fs.existsSync(expFile)) { fs.writeFileSync(expFile, got, 'latin1'); console.log('wrote ' + path.basename(expFile)); continue; }
+    if (!fs.existsSync(expFile)) {
+      fail++;
+      console.log(`FAIL ${f}: no snapshot (run node tests/mysql-difftest.js --update-snapshots ${f})`);
+      continue;
+    }
     const exp = fs.readFileSync(expFile, 'latin1');
     if (exp === got) { pass++; continue; }
     fail++;
