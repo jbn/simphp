@@ -2936,10 +2936,23 @@
       const find = this.args[0].val_str(), buf = this.args[1].val_str();
       if (find === null || buf === null) { this.null_value = true; return 0n; }
       this.null_value = false;
-      if (buf.length < find.length) return 0n;
-      const parts = buf.split(',');
-      const F2 = caseUp(find);
-      for (let i = 0; i < parts.length; i++) if (caseUp(parts[i]) === F2) return BigInt(i + 1);
+      // (a scan with C's toupper(): ASCII case only; a match must end at a
+      // comma or the end, so 'a,b' is found at the start of 'a,b')
+      const diff = buf.length - find.length;
+      if (diff < 0) return 0n;
+      const up = (c) => (c >= 97 && c <= 122 ? c - 32 : c);
+      const end = diff + 1;
+      let str = 0, position = 1;
+      do {
+        let pos = 0, found = true;
+        while (pos !== find.length) {
+          if (up(cc(buf, str)) !== up(cc(find, pos))) { found = false; break; }
+          str++; pos++;
+        }
+        if (found && (str === buf.length || buf[str] === ',')) return BigInt(position);
+        while (str < end && buf[str] !== ',') str++;
+        position++;
+      } while (++str <= end);
       return 0n;
     }
   }
@@ -3894,7 +3907,8 @@
     fix_fields(ctx) { this.item.fix_fields(ctx); super.fix_fields(ctx); }
     fix_length_and_dec() {
       this.max_length = 0; this.decimals = 0;
-      for (const a of this.args) { this.max_length = Math.max(this.max_length, a.max_length); this.decimals = Math.max(this.decimals, a.decimals); }
+      // (from the second string on, as MySQL's loop does)
+      for (const a of this.args.slice(1)) { this.max_length = Math.max(this.max_length, a.max_length); this.decimals = Math.max(this.decimals, a.decimals); }
       this.maybe_null = true;
       this.with_sum_func = this.with_sum_func || this.item.with_sum_func;
       this.used_tables_cache |= this.item.used_tables();
@@ -3916,7 +3930,8 @@
     children() { return [this.item, ...this.args]; }
     fix_fields(ctx) { this.item.fix_fields(ctx); super.fix_fields(ctx); }
     fix_length_and_dec() {
-      this.max_length = this.args.length - 1 + this.args.reduce((s, a) => s + a.max_length, 0);
+      // (the sum starts at the second string, as MySQL's loop does)
+      this.max_length = this.args.length - 1 + this.args.slice(1).reduce((s, a) => s + a.max_length, 0);
       this.used_tables_cache |= this.item.used_tables();
       this.const_item_cache = this.const_item_cache && this.item.const_item();
     }

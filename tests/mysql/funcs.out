@@ -1,0 +1,440 @@
+> SELECT 1 + 1, 1 - 2, 2 * 3, 7 / 2, 7 % 3, -7 % 3, 7 % -3, 1 / 0, 1 % 0, 0 / 0
+  rows=1 fields=10
+  [1 + 1] table='' type=int len=17 flags='not_null' max=1 num=1 blob=0
+  [1 - 2] table='' type=int len=17 flags='not_null' max=2 num=1 blob=0
+  [2 * 3] table='' type=int len=17 flags='not_null' max=1 num=1 blob=0
+  [7 / 2] table='' type=real len=3 flags='' max=4 num=1 blob=0
+  [7 % 3] table='' type=int len=1 flags='' max=1 num=1 blob=0
+  [-7 % 3] table='' type=int len=1 flags='' max=2 num=1 blob=0
+  [7 % -3] table='' type=int len=2 flags='' max=1 num=1 blob=0
+  [1 / 0] table='' type=real len=3 flags='' max=0 num=1 blob=0
+  [1 % 0] table='' type=int len=1 flags='' max=0 num=1 blob=0
+  [0 / 0] table='' type=real len=3 flags='' max=0 num=1 blob=0
+  | '2' | '-1' | '6' | '3.50' | '1' | '-1' | '1' | NULL | NULL | NULL
+> SELECT 1.5 + 1, 1.50 * 2, 0.1 + 0.2, 1e3, 1.0e3 + 1, -0.0, 3.14159265358979323846, 123456789012345678901234567890
+  rows=1 fields=8
+  [1.5 + 1] table='' type=real len=18 flags='not_null' max=3 num=1 blob=0
+  [1.50 * 2] table='' type=real len=19 flags='not_null' max=4 num=1 blob=0
+  [0.1 + 0.2] table='' type=real len=18 flags='not_null' max=3 num=1 blob=0
+  [1e3] table='' type=real len=23 flags='not_null' max=4 num=1 blob=0
+  [1.0e3 + 1] table='' type=real len=23 flags='not_null' max=4 num=1 blob=0
+  [-0.0] table='' type=real len=4 flags='not_null' max=4 num=1 blob=0
+  [3.14159265358979323846] table='' type=real len=22 flags='not_null' max=22 num=1 blob=0
+  [123456789012345678901234567890] table='' type=real len=30 flags='not_null' max=30 num=1 blob=0
+  | '2.5' | '3.00' | '0.3' | '1000' | '1001' | '-0.0' | '3.14159265358979311600' | '123456789012345677877719597056'
+> SELECT 9223372036854775807 + 1, -9223372036854775808 - 1, 18446744073709551615, 18446744073709551616, 4294967296 * 4294967296
+  rows=1 fields=5
+  [9223372036854775807 + 1] table='' type=int len=17 flags='not_null' max=20 num=1 blob=0
+  [-9223372036854775808 - 1] table='' type=int len=17 flags='not_null' max=19 num=1 blob=0
+  [18446744073709551615] table='' type=real len=20 flags='not_null' max=20 num=1 blob=0
+  [18446744073709551616] table='' type=real len=20 flags='not_null' max=20 num=1 blob=0
+  [4294967296 * 4294967296] table='' type=int len=17 flags='not_null' max=1 num=1 blob=0
+  | '-9223372036854775808' | '9223372036854775807' | '18446744073709551616' | '18446744073709551616' | '0'
+> SELECT 2147483647 + 1, -2147483648 - 1, 4294967295 + 1, 9223372036854775807 * 2
+  rows=1 fields=4
+  [2147483647 + 1] table='' type=int len=17 flags='not_null' max=10 num=1 blob=0
+  [-2147483648 - 1] table='' type=int len=17 flags='not_null' max=11 num=1 blob=0
+  [4294967295 + 1] table='' type=int len=17 flags='not_null' max=10 num=1 blob=0
+  [9223372036854775807 * 2] table='' type=int len=17 flags='not_null' max=2 num=1 blob=0
+  | '2147483648' | '-2147483649' | '4294967296' | '-2'
+> SELECT '3' + 4, '3abc' + 1, 'abc' + 1, '1e2' + 0, ' 12 ' + 0, '0x10' + 0, 0x10 + 0, 0x41, x'41', 'a' * 1
+  ERR 1054: Unknown column 'x' in 'field list'
+> SELECT ABS(-3), ABS(-3.5), ABS(NULL), SIGN(-2), SIGN(0), SIGN(3.3), MOD(10, 3), MOD(-10, 3), MOD(10.5, 3)
+  rows=1 fields=9
+  [ABS(-3)] table='' type=int len=2 flags='not_null' max=1 num=1 blob=0
+  [ABS(-3.5)] table='' type=real len=4 flags='not_null' max=3 num=1 blob=0
+  [ABS(NULL)] table='' type=real len=0 flags='' max=0 num=1 blob=0
+  [SIGN(-2)] table='' type=int len=21 flags='not_null' max=2 num=1 blob=0
+  [SIGN(0)] table='' type=int len=21 flags='not_null' max=1 num=1 blob=0
+  [SIGN(3.3)] table='' type=int len=21 flags='not_null' max=1 num=1 blob=0
+  [MOD(10, 3)] table='' type=int len=1 flags='' max=1 num=1 blob=0
+  [MOD(-10, 3)] table='' type=int len=1 flags='' max=2 num=1 blob=0
+  [MOD(10.5, 3)] table='' type=real len=1 flags='' max=1 num=1 blob=0
+  | '3' | '3.5' | NULL | '-1' | '0' | '1' | '1' | '-1' | '2'
+> SELECT ROUND(2.5), ROUND(3.5), ROUND(-2.5), ROUND(1.005, 2), ROUND(1234.5678, -2), ROUND(1.95583, 2), ROUND(2.675, 2), ROUND(-1.5)
+  rows=1 fields=8
+  [ROUND(2.5)] table='' type=real len=3 flags='not_null' max=1 num=1 blob=0
+  [ROUND(3.5)] table='' type=real len=3 flags='not_null' max=1 num=1 blob=0
+  [ROUND(-2.5)] table='' type=real len=4 flags='not_null' max=2 num=1 blob=0
+  [ROUND(1.005, 2)] table='' type=real len=5 flags='not_null' max=4 num=1 blob=0
+  [ROUND(1234.5678, -2)] table='' type=real len=9 flags='not_null' max=4 num=1 blob=0
+  [ROUND(1.95583, 2)] table='' type=real len=7 flags='not_null' max=4 num=1 blob=0
+  [ROUND(2.675, 2)] table='' type=real len=5 flags='not_null' max=4 num=1 blob=0
+  [ROUND(-1.5)] table='' type=real len=4 flags='not_null' max=2 num=1 blob=0
+  | '2' | '4' | '-2' | '1.00' | '1200' | '1.96' | '2.68' | '-2'
+> SELECT TRUNCATE(1.999, 1), TRUNCATE(-1.999, 1), TRUNCATE(122, -2), FLOOR(1.5), FLOOR(-1.5), CEILING(1.2), CEILING(-1.2), FLOOR(NULL)
+  rows=1 fields=8
+  [TRUNCATE(1.999, 1)] table='' type=real len=5 flags='not_null' max=3 num=1 blob=0
+  [TRUNCATE(-1.999, 1)] table='' type=real len=6 flags='not_null' max=4 num=1 blob=0
+  [TRUNCATE(122, -2)] table='' type=real len=3 flags='not_null' max=3 num=1 blob=0
+  [FLOOR(1.5)] table='' type=int len=3 flags='not_null' max=1 num=1 blob=0
+  [FLOOR(-1.5)] table='' type=int len=4 flags='not_null' max=2 num=1 blob=0
+  [CEILING(1.2)] table='' type=int len=3 flags='not_null' max=1 num=1 blob=0
+  [CEILING(-1.2)] table='' type=int len=4 flags='not_null' max=2 num=1 blob=0
+  [FLOOR(NULL)] table='' type=int len=1 flags='' max=0 num=1 blob=0
+  | '1.9' | '-2.0' | '100' | '1' | '-2' | '2' | '-1' | NULL
+> SELECT SQRT(4), SQRT(2), SQRT(-1), POW(2, 10), POWER(2, 0.5), POW(-8, 1/3), EXP(1), LN(10), LOG(10), LOG(-1), LOG10(1000), LOG(2, 8)
+  ERR 1064: You have an error in your SQL syntax near '(10), LOG(10), LOG(-1), LOG10(1000), LOG(2, 8)' at line 1
+> SELECT PI(), PI() + 0.0000000000, SIN(0), COS(PI()), TAN(PI()/4), ASIN(1), ACOS(2), ATAN(1), ATAN(1, 2), ATAN2(1, 2), COT(1)
+  rows=1 fields=11
+  [PI()] table='' type=real len=8 flags='not_null' max=8 num=1 blob=0
+  [PI() + 0.0000000000] table='' type=real len=27 flags='not_null' max=12 num=1 blob=0
+  [SIN(0)] table='' type=real len=23 flags='' max=8 num=1 blob=0
+  [COS(PI())] table='' type=real len=23 flags='' max=9 num=1 blob=0
+  [TAN(PI()/4)] table='' type=real len=23 flags='' max=8 num=1 blob=0
+  [ASIN(1)] table='' type=real len=23 flags='' max=8 num=1 blob=0
+  [ACOS(2)] table='' type=real len=23 flags='' max=0 num=1 blob=0
+  [ATAN(1)] table='' type=real len=23 flags='' max=8 num=1 blob=0
+  [ATAN(1, 2)] table='' type=real len=23 flags='' max=8 num=1 blob=0
+  [ATAN2(1, 2)] table='' type=real len=23 flags='' max=8 num=1 blob=0
+  [COT(1)] table='' type=real len=9 flags='' max=10 num=1 blob=0
+  | '3.141593' | '3.1415926536' | '0.000000' | '-1.000000' | '1.000000' | '1.570796' | NULL | '0.785398' | '0.463648' | '0.463648' | '0.64209262'
+> SELECT DEGREES(PI()), RADIANS(180), RAND(1), RAND(1) < 1, RAND(2), RAND(NULL)
+  rows=1 fields=6
+  [DEGREES(PI())] table='' type=real len=23 flags='not_null' max=3 num=1 blob=0
+  [RADIANS(180)] table='' type=real len=23 flags='not_null' max=15 num=1 blob=0
+  [RAND(1)] table='' type=real len=23 flags='not_null' max=16 num=1 blob=0
+  [RAND(1) < 1] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [RAND(2)] table='' type=real len=23 flags='not_null' max=16 num=1 blob=0
+  [RAND(NULL)] table='' type=real len=23 flags='' max=16 num=1 blob=0
+  | '180' | '3.1415926535898' | '0.18109050223705' | '1' | '0.18109050503102' | '0.18109049851176'
+> SELECT GREATEST(1, 2, 3), GREATEST('a', 'B', 'c'), GREATEST(1, '2', 3.5), LEAST(2, 1.5), LEAST('b', 'A'), GREATEST(1, NULL)
+  rows=1 fields=6
+  [GREATEST(1, 2, 3)] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [GREATEST('a', 'B', 'c')] table='' type=string len=1 flags='not_null' max=1 num=0 blob=0
+  [GREATEST(1, '2', 3.5)] table='' type=real len=3 flags='not_null' max=3 num=1 blob=0
+  [LEAST(2, 1.5)] table='' type=real len=3 flags='not_null' max=3 num=1 blob=0
+  [LEAST('b', 'A')] table='' type=string len=1 flags='not_null' max=1 num=0 blob=0
+  [GREATEST(1, NULL)] table='' type=real len=1 flags='not_null' max=1 num=1 blob=0
+  | '3' | 'c' | '3.5' | '1.5' | 'A' | '1'
+> SELECT FORMAT(1234567.891, 2), FORMAT(1234.5, 0), FORMAT(-0.5, 0), FORMAT(1234567, 4), FORMAT(0.125, 2), FORMAT(NULL, 2)
+  rows=1 fields=6
+  [FORMAT(1234567.891, 2)] table='' type=string len=13 flags='not_null' max=12 num=0 blob=0
+  [FORMAT(1234.5, 0)] table='' type=string len=7 flags='not_null' max=5 num=0 blob=0
+  [FORMAT(-0.5, 0)] table='' type=string len=5 flags='not_null' max=2 num=0 blob=0
+  [FORMAT(1234567, 4)] table='' type=string len=9 flags='not_null' max=14 num=0 blob=0
+  [FORMAT(0.125, 2)] table='' type=string len=5 flags='not_null' max=4 num=0 blob=0
+  [FORMAT(NULL, 2)] table='' type=string len=0 flags='' max=0 num=0 blob=0
+  | '1,234,567.89' | '1,234' | '-0' | '1,234,567.0000' | '0.12' | NULL
+> SELECT CONV('zz', 36, 10), CONV(-1, 10, 16), CONV(255, 10, -16), CONV('11', 2, 10), CONV('abc', 10, 10), BIN(-1), OCT(-1), HEX(-1)
+  rows=1 fields=8
+  [CONV('zz', 36, 10)] table='' type=string len=64 flags='not_null' max=4 num=0 blob=0
+  [CONV(-1, 10, 16)] table='' type=string len=64 flags='not_null' max=16 num=0 blob=0
+  [CONV(255, 10, -16)] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [CONV('11', 2, 10)] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [CONV('abc', 10, 10)] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [BIN(-1)] table='' type=string len=64 flags='not_null' max=64 num=0 blob=0
+  [OCT(-1)] table='' type=string len=64 flags='not_null' max=22 num=0 blob=0
+  [HEX(-1)] table='' type=string len=64 flags='not_null' max=16 num=0 blob=0
+  | '1295' | 'FFFFFFFFFFFFFFFF' | 'FF' | '3' | '0' | '1111111111111111111111111111111111111111111111111111111111111111' | '1777777777777777777777' | 'FFFFFFFFFFFFFFFF'
+> SELECT 1 | 2, 6 & 3, 1 << 3, -1 >> 60, ~0, ~1, 5 ^ 3, BIT_COUNT(255), BIT_COUNT(-1)
+  ERR 1064: You have an error in your SQL syntax near '^ 3, BIT_COUNT(255), BIT_COUNT(-1)' at line 1
+> SELECT 1 = 1, 1 = '1', 1 = '1a', 'a' = 0, NULL = NULL, NULL <=> NULL, 1 <=> NULL, 1 != 2, 1 <> 1, 2 > 1, '10' > '9', 10 > '9'
+  rows=1 fields=12
+  [1 = 1] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [1 = '1'] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [1 = '1a'] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  ['a' = 0] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [NULL = NULL] table='' type=int len=1 flags='' max=0 num=1 blob=0
+  [NULL <=> NULL] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [1 <=> NULL] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [1 != 2] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [1 <> 1] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [2 > 1] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  ['10' > '9'] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [10 > '9'] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  | '1' | '1' | '1' | '1' | NULL | '1' | '0' | '1' | '0' | '1' | '0' | '1'
+> SELECT 1 AND 0, 1 && NULL, 0 AND NULL, 1 OR NULL, 0 OR NULL, NOT 1, NOT NULL, !0, 1 XOR 1
+  ERR 1064: You have an error in your SQL syntax near '1' at line 1
+> SELECT 2 BETWEEN 1 AND 3, 'b' BETWEEN 'a' AND 'c', 2 NOT BETWEEN 1 AND 3, NULL BETWEEN 1 AND 2, 5 BETWEEN 6 AND 4
+  rows=1 fields=5
+  [2 BETWEEN 1 AND 3] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  ['b' BETWEEN 'a' AND 'c'] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [2 NOT BETWEEN 1 AND 3] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [NULL BETWEEN 1 AND 2] table='' type=int len=1 flags='' max=0 num=1 blob=0
+  [5 BETWEEN 6 AND 4] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  | '1' | '1' | '0' | NULL | '0'
+> SELECT 2 IN (1, 2), 'a' IN ('A', 'b'), 2 IN (1, NULL), 3 IN (1, NULL), NULL IN (1), 2 NOT IN (1, 3), 1 IN ('1', 'x')
+  rows=1 fields=7
+  [2 IN (1, 2)] table='' type=int len=2 flags='not_null' max=1 num=1 blob=0
+  ['a' IN ('A', 'b')] table='' type=int len=2 flags='not_null' max=1 num=1 blob=0
+  [2 IN (1, NULL)] table='' type=int len=2 flags='not_null' max=1 num=1 blob=0
+  [3 IN (1, NULL)] table='' type=int len=2 flags='not_null' max=1 num=1 blob=0
+  [NULL IN (1)] table='' type=int len=2 flags='' max=0 num=1 blob=0
+  [2 NOT IN (1, 3)] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [1 IN ('1', 'x')] table='' type=int len=2 flags='not_null' max=1 num=1 blob=0
+  | '1' | '1' | '0' | '0' | NULL | '1' | '1'
+> SELECT ISNULL(NULL), ISNULL(0), NULL IS NULL, 0 IS NOT NULL, IFNULL(NULL, 'x'), IFNULL(1, 'x'), NULLIF(1, 1), NULLIF(1, 2), COALESCE(NULL, NULL, 3)
+  rows=1 fields=9
+  [ISNULL(NULL)] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [ISNULL(0)] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [NULL IS NULL] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [0 IS NOT NULL] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [IFNULL(NULL, 'x')] table='' type=string len=1 flags='not_null' max=1 num=0 blob=0
+  [IFNULL(1, 'x')] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [NULLIF(1, 1)] table='' type=int len=1 flags='' max=0 num=1 blob=0
+  [NULLIF(1, 2)] table='' type=int len=1 flags='' max=1 num=1 blob=0
+  [COALESCE(NULL, NULL, 3)] table='' type=string len=1 flags='' max=1 num=0 blob=0
+  | '1' | '0' | '1' | '1' | 'x' | '1' | NULL | '1' | '3'
+> SELECT IF(1, 'a', 'b'), IF(0, 'a', 2), IF(NULL, 1, 2), IF(1 > 0, 1.5, 2), IF('0', 'y', 'n'), IF('0.0', 'y', 'n'), IF('abc', 'y', 'n')
+  rows=1 fields=7
+  [IF(1, 'a', 'b')] table='' type=string len=1 flags='not_null' max=1 num=0 blob=0
+  [IF(0, 'a', 2)] table='' type=string len=1 flags='not_null' max=1 num=0 blob=0
+  [IF(NULL, 1, 2)] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [IF(1 > 0, 1.5, 2)] table='' type=real len=3 flags='not_null' max=3 num=1 blob=0
+  [IF('0', 'y', 'n')] table='' type=string len=1 flags='not_null' max=1 num=0 blob=0
+  [IF('0.0', 'y', 'n')] table='' type=string len=1 flags='not_null' max=1 num=0 blob=0
+  [IF('abc', 'y', 'n')] table='' type=string len=1 flags='not_null' max=1 num=0 blob=0
+  | 'a' | '2' | '2' | '1.5' | 'n' | 'n' | 'n'
+> SELECT CASE 1 WHEN 1 THEN 'one' WHEN 2 THEN 'two' END, CASE 3 WHEN 1 THEN 'one' ELSE 'other' END, CASE WHEN 1 > 2 THEN 'a' END, CASE 'b' WHEN 'B' THEN 1 ELSE 0 END
+  rows=1 fields=4
+  [CASE 1 WHEN 1 THEN 'one' WHEN 2 THEN 'two' END] table='' type=string len=3 flags='' max=3 num=0 blob=0
+  [CASE 3 WHEN 1 THEN 'one' ELSE 'other' END] table='' type=string len=5 flags='not_null' max=5 num=0 blob=0
+  [CASE WHEN 1 > 2 THEN 'a' END] table='' type=string len=1 flags='' max=0 num=0 blob=0
+  [CASE 'b' WHEN 'B' THEN 1 ELSE 0 END] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  | 'one' | 'other' | NULL | '1'
+> SELECT INTERVAL(5, 1, 3, 7), INTERVAL(0, 1), INTERVAL(NULL, 1), STRCMP('text', 'text2'), STRCMP(NULL, 'a')
+  rows=1 fields=5
+  [INTERVAL(5, 1, 3, 7)] table='' type=int len=2 flags='not_null' max=1 num=1 blob=0
+  [INTERVAL(0, 1)] table='' type=int len=2 flags='not_null' max=1 num=1 blob=0
+  [INTERVAL(NULL, 1)] table='' type=int len=2 flags='not_null' max=2 num=1 blob=0
+  [STRCMP('text', 'text2')] table='' type=int len=2 flags='not_null' max=2 num=1 blob=0
+  [STRCMP(NULL, 'a')] table='' type=int len=2 flags='' max=0 num=1 blob=0
+  | '2' | '0' | '-1' | '-1' | NULL
+> SELECT CONCAT('a', 1.50), CONCAT(1/3), CONCAT(2.0 * 3), LENGTH(1/3), LENGTH(PI()), CONCAT(0.1 + 0.2)
+  rows=1 fields=6
+  [CONCAT('a', 1.50)] table='' type=string len=5 flags='not_null' max=5 num=0 blob=0
+  [CONCAT(1/3)] table='' type=string len=3 flags='' max=4 num=0 blob=0
+  [CONCAT(2.0 * 3)] table='' type=string len=18 flags='not_null' max=3 num=0 blob=0
+  [LENGTH(1/3)] table='' type=int len=10 flags='' max=1 num=1 blob=0
+  [LENGTH(PI())] table='' type=int len=10 flags='not_null' max=1 num=1 blob=0
+  [CONCAT(0.1 + 0.2)] table='' type=string len=18 flags='not_null' max=3 num=0 blob=0
+  | 'a1.50' | '0.33' | '6.0' | '4' | '8' | '0.3'
+> SELECT LOCATE('', 'abc'), LOCATE('x', ''), INSTR('abc', ''), LEFT('abc', -1), RIGHT('abc', 0), SUBSTRING('abc', 0), SUBSTRING('abc', 5), MID('abc', 2, -1)
+  rows=1 fields=8
+  [LOCATE('', 'abc')] table='' type=int len=11 flags='not_null' max=1 num=1 blob=0
+  [LOCATE('x', '')] table='' type=int len=11 flags='not_null' max=1 num=1 blob=0
+  [INSTR('abc', '')] table='' type=int len=11 flags='not_null' max=1 num=1 blob=0
+  [LEFT('abc', -1)] table='' type=string len=0 flags='not_null' max=0 num=0 blob=0
+  [RIGHT('abc', 0)] table='' type=string len=0 flags='not_null' max=0 num=0 blob=0
+  [SUBSTRING('abc', 0)] table='' type=string len=0 flags='not_null' max=0 num=0 blob=0
+  [SUBSTRING('abc', 5)] table='' type=string len=0 flags='not_null' max=0 num=0 blob=0
+  [MID('abc', 2, -1)] table='' type=string len=0 flags='not_null' max=0 num=0 blob=0
+  | '1' | '0' | '1' | '' | '' | '' | '' | ''
+> SELECT REPEAT('x', 0), REPEAT('x', -1), SPACE(0), LPAD('a', 0, 'x'), RPAD('abc', 2, 'x'), LPAD('a', 3, ''), INSERT('abc', 10, 1, 'x'), INSERT('abc', 1, 10, 'x')
+  rows=1 fields=8
+  [REPEAT('x', 0)] table='' type=string len=0 flags='not_null' max=0 num=0 blob=0
+  [REPEAT('x', -1)] table='' type=string len=8192 flags='' max=0 num=0 blob=0
+  [SPACE(0)] table='' type=string len=0 flags='not_null' max=0 num=0 blob=0
+  [LPAD('a', 0, 'x')] table='' type=string len=1 flags='not_null' max=0 num=0 blob=0
+  [RPAD('abc', 2, 'x')] table='' type=string len=3 flags='not_null' max=2 num=0 blob=0
+  [LPAD('a', 3, '')] table='' type=string len=3 flags='not_null' max=0 num=0 blob=0
+  [INSERT('abc', 10, 1, 'x')] table='' type=string len=4 flags='not_null' max=3 num=0 blob=0
+  [INSERT('abc', 1, 10, 'x')] table='' type=string len=4 flags='not_null' max=1 num=0 blob=0
+  | '' | '' | '' | '' | 'ab' | NULL | 'abc' | 'x'
+> SELECT FIND_IN_SET('b', 'a,b,c'), FIND_IN_SET('B', 'a,b,c'), FIND_IN_SET('d', 'a,b'), FIND_IN_SET('', ''), FIND_IN_SET('a,b', 'a,b')
+  rows=1 fields=5
+  [FIND_IN_SET('b', 'a,b,c')] table='' type=int len=3 flags='not_null' max=1 num=1 blob=0
+  [FIND_IN_SET('B', 'a,b,c')] table='' type=int len=3 flags='not_null' max=1 num=1 blob=0
+  [FIND_IN_SET('d', 'a,b')] table='' type=int len=3 flags='not_null' max=1 num=1 blob=0
+  [FIND_IN_SET('', '')] table='' type=int len=3 flags='not_null' max=1 num=1 blob=0
+  [FIND_IN_SET('a,b', 'a,b')] table='' type=int len=3 flags='not_null' max=1 num=1 blob=0
+  | '2' | '2' | '0' | '1' | '1'
+> SELECT MAKE_SET(5, 'a', 'b', 'c'), MAKE_SET(0, 'a'), EXPORT_SET(5, 'Y', 'N', ',', 4), ELT(0, 'a'), ELT(3, 'a', 'b'), FIELD('x', 'a'), FIELD(NULL, 'a')
+  rows=1 fields=7
+  [MAKE_SET(5, 'a', 'b', 'c')] table='' type=string len=4 flags='not_null' max=3 num=0 blob=0
+  [MAKE_SET(0, 'a')] table='' type=string len=0 flags='not_null' max=0 num=0 blob=0
+  [EXPORT_SET(5, 'Y', 'N', ',', 4)] table='' type=string len=127 flags='not_null' max=7 num=0 blob=0
+  [ELT(0, 'a')] table='' type=string len=0 flags='' max=0 num=0 blob=0
+  [ELT(3, 'a', 'b')] table='' type=string len=1 flags='' max=0 num=0 blob=0
+  [FIELD('x', 'a')] table='' type=int len=3 flags='not_null' max=1 num=1 blob=0
+  [FIELD(NULL, 'a')] table='' type=int len=3 flags='not_null' max=1 num=1 blob=0
+  | 'a,c' | '' | 'Y,N,Y,N' | NULL | NULL | '0' | '0'
+> SELECT QUOTE('x')
+  ERR 1064: You have an error in your SQL syntax near '('x')' at line 1
+> SELECT CHAR(0x41, NULL, 66), CHAR(256), CHAR_LENGTH('é'), OCTET_LENGTH('ab'), BIT_LENGTH('ab')
+  ERR 1064: You have an error in your SQL syntax near '('ab')' at line 1
+> SELECT INET_ATON('10.0.5.9'), INET_ATON('1.2.3'), INET_NTOA(167773449), INET_NTOA(-1), INET_ATON('256.1.1.1')
+  rows=1 fields=5
+  [INET_ATON('10.0.5.9')] table='' type=int len=21 flags='' max=9 num=1 blob=0
+  [INET_ATON('1.2.3')] table='' type=int len=21 flags='' max=5 num=1 blob=0
+  [INET_NTOA(167773449)] table='' type=string len=31 flags='not_null' max=8 num=0 blob=0
+  [INET_NTOA(-1)] table='' type=string len=31 flags='not_null' max=31 num=0 blob=0
+  [INET_ATON('256.1.1.1')] table='' type=int len=21 flags='' max=0 num=1 blob=0
+  | '167773449' | '66051' | '10.0.5.9' | '255.255.255.255.255.255.255.255' | NULL
+> SELECT DATABASE(), USER(), SYSTEM_USER(), SESSION_USER(), VERSION(), CONNECTION_ID() > 0, LAST_INSERT_ID(), BENCHMARK(10, 1+1)
+  rows=1 fields=8
+  [DATABASE()] table='' type=string len=34 flags='not_null' max=4 num=0 blob=0
+  [USER()] table='' type=string len=77 flags='not_null' max=14 num=0 blob=0
+  [SYSTEM_USER()] table='' type=string len=77 flags='not_null' max=14 num=0 blob=0
+  [SESSION_USER()] table='' type=string len=77 flags='not_null' max=14 num=0 blob=0
+  [VERSION()] table='' type=string len=7 flags='not_null' max=7 num=0 blob=0
+  [CONNECTION_ID() > 0] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [last_insert_id()] table='' type=int len=21 flags='not_null' max=1 num=1 blob=0
+  [BENCHMARK(10, 1+1)] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  | 'test' | 'root@localhost' | 'root@localhost' | 'root@localhost' | '3.23.49' | '1' | '0' | '0'
+> SELECT GET_LOCK('lk', 1), IS_FREE_LOCK('lk'), RELEASE_LOCK('lk'), RELEASE_LOCK('lk'), IS_FREE_LOCK('lk'), RELEASE_LOCK('nosuch')
+  ERR 1064: You have an error in your SQL syntax near '('lk'), RELEASE_LOCK('lk'), RELEASE_LOCK('lk'), IS_FREE_LOCK('lk'), RELEASE_LOCK' at line 1
+> SELECT DATE_FORMAT('2001-12-26 14:05:09', '%a %b %c %D %d %e %H %h %I %i %j %k %l %M %m %p %r %S %s %T %U %u %V %v %W %w %X %x %Y %y %%')
+  rows=1 fields=1
+  [DATE_FORMAT('2001-12-26 14:05:09', '%a %b %c %D %d %e %H %h %I %i %j %k %l %M %m %p %r %S %s %T %U %u %V %v %W %w %X %x %Y %y %%')] table='' type=string len=130 flags='' max=128 num=0 blob=0
+  | 'Wed Dec 12 26th 26 26 14 02 02 05 360 14 2 December 12 PM 02:05:09 PM 09 09 14:05:09 52 52 52 52 Wednesday 3 2001 2001 2001 01 %'
+> SELECT DATE_FORMAT('2001-01-01', '%U %u %V %v %X %x'), DATE_FORMAT('2000-01-01', '%U %u %V %v %X %x'), DATE_FORMAT('0000-00-00', '%Y-%m-%d %W'), DATE_FORMAT('2001-13-01', '%Y')
+  rows=1 fields=4
+  [DATE_FORMAT('2001-01-01', '%U %u %V %v %X %x')] table='' type=string len=21 flags='' max=21 num=0 blob=0
+  [DATE_FORMAT('2000-01-01', '%U %u %V %v %X %x')] table='' type=string len=21 flags='' max=21 num=0 blob=0
+  [DATE_FORMAT('0000-00-00', '%Y-%m-%d %W')] table='' type=string len=20 flags='' max=19 num=0 blob=0
+  [DATE_FORMAT('2001-13-01', '%Y')] table='' type=string len=4 flags='' max=0 num=0 blob=0
+  | '01 01 01 01 2001 2001' | '00 00 52 52 1999 1999' | '0000-00-00 Saturday' | NULL
+> SELECT TIME_FORMAT('14:05:09', '%H %k %h %I %l %i %s %p %r %T'), TIME_FORMAT('-01:02:03', '%H:%i'), TIME_FORMAT('100:00:00', '%H %h')
+  rows=1 fields=3
+  [TIME_FORMAT('14:05:09', '%H %k %h %I %l %i %s %p %r %T')] table='' type=string len=44 flags='' max=43 num=0 blob=0
+  [TIME_FORMAT('-01:02:03', '%H:%i')] table='' type=string len=5 flags='' max=5 num=0 blob=0
+  [TIME_FORMAT('100:00:00', '%H %h')] table='' type=string len=5 flags='' max=6 num=0 blob=0
+  | '14 14 02 02 2 05 09 PM 02:05:09 PM 14:05:09' | '01:02' | '100 04'
+> SELECT DAYOFWEEK('2001-12-26'), WEEKDAY('2001-12-26'), DAYOFMONTH('2001-12-26'), DAYOFYEAR('2001-12-26'), MONTH('2001-12-26'), YEAR('01-12-26'), QUARTER('2001-12-26'), DAYNAME('2001-12-26'), MONTHNAME('2001-12-26')
+  rows=1 fields=9
+  [DAYOFWEEK('2001-12-26')] table='' type=int len=1 flags='' max=1 num=1 blob=0
+  [WEEKDAY('2001-12-26')] table='' type=int len=1 flags='' max=1 num=1 blob=0
+  [DAYOFMONTH('2001-12-26')] table='' type=int len=2 flags='' max=2 num=1 blob=0
+  [DAYOFYEAR('2001-12-26')] table='' type=int len=3 flags='' max=3 num=1 blob=0
+  [MONTH('2001-12-26')] table='' type=int len=2 flags='' max=2 num=1 blob=0
+  [YEAR('01-12-26')] table='' type=int len=4 flags='' max=4 num=1 blob=0
+  [QUARTER('2001-12-26')] table='' type=int len=1 flags='' max=1 num=1 blob=0
+  [DAYNAME('2001-12-26')] table='' type=string len=9 flags='' max=9 num=0 blob=0
+  [MONTHNAME('2001-12-26')] table='' type=string len=10 flags='' max=8 num=0 blob=0
+  | '4' | '2' | '26' | '360' | '12' | '2001' | '4' | 'Wednesday' | 'December'
+> SELECT WEEK('2001-12-31'), WEEK('2001-12-31', 1), WEEK('2000-01-01'), WEEK('2000-01-01', 1), YEARWEEK('2000-01-01'), YEARWEEK('2001-12-31', 1)
+  rows=1 fields=6
+  [WEEK('2001-12-31')] table='' type=int len=2 flags='' max=2 num=1 blob=0
+  [WEEK('2001-12-31', 1)] table='' type=int len=2 flags='' max=2 num=1 blob=0
+  [WEEK('2000-01-01')] table='' type=int len=2 flags='' max=1 num=1 blob=0
+  [WEEK('2000-01-01', 1)] table='' type=int len=2 flags='' max=1 num=1 blob=0
+  [YEARWEEK('2000-01-01')] table='' type=int len=6 flags='' max=6 num=1 blob=0
+  [YEARWEEK('2001-12-31', 1)] table='' type=int len=6 flags='' max=6 num=1 blob=0
+  | '53' | '53' | '0' | '0' | '199952' | '200201'
+> SELECT HOUR('14:05:09'), MINUTE('14:05:09'), SECOND('14:05:09'), HOUR('2001-12-26 14:05:09'), HOUR('26:00:00'), MINUTE('2001-12-26'), SECOND(NULL)
+  rows=1 fields=7
+  [HOUR('14:05:09')] table='' type=int len=2 flags='' max=2 num=1 blob=0
+  [MINUTE('14:05:09')] table='' type=int len=2 flags='' max=1 num=1 blob=0
+  [SECOND('14:05:09')] table='' type=int len=2 flags='' max=1 num=1 blob=0
+  [HOUR('2001-12-26 14:05:09')] table='' type=int len=2 flags='' max=2 num=1 blob=0
+  [HOUR('26:00:00')] table='' type=int len=2 flags='' max=2 num=1 blob=0
+  [MINUTE('2001-12-26')] table='' type=int len=2 flags='' max=2 num=1 blob=0
+  [SECOND(NULL)] table='' type=int len=2 flags='' max=0 num=1 blob=0
+  | '14' | '5' | '9' | '14' | '26' | '20' | NULL
+> SELECT TO_DAYS('2001-12-26'), TO_DAYS('0000-00-00'), FROM_DAYS(731210), FROM_DAYS(0), FROM_DAYS(366), TO_DAYS(20011226), TO_DAYS('01-12-26')
+  rows=1 fields=7
+  [TO_DAYS('2001-12-26')] table='' type=int len=6 flags='not_null' max=6 num=1 blob=0
+  [TO_DAYS('0000-00-00')] table='' type=int len=6 flags='not_null' max=0 num=1 blob=0
+  [FROM_DAYS(731210)] table='' type=string len=10 flags='not_null' max=10 num=0 blob=0
+  [FROM_DAYS(0)] table='' type=string len=10 flags='not_null' max=10 num=0 blob=0
+  [FROM_DAYS(366)] table='' type=string len=10 flags='not_null' max=10 num=0 blob=0
+  [TO_DAYS(20011226)] table='' type=int len=6 flags='not_null' max=6 num=1 blob=0
+  [TO_DAYS('01-12-26')] table='' type=int len=6 flags='not_null' max=6 num=1 blob=0
+  | '731210' | NULL | '2001-12-26' | '0000-00-00' | '0001-01-01' | '731210' | '731210'
+> SELECT UNIX_TIMESTAMP('2001-12-26 14:05:09'), UNIX_TIMESTAMP('1969-12-31 23:59:59'), UNIX_TIMESTAMP('2038-01-19 03:14:08'), UNIX_TIMESTAMP(20011226), FROM_UNIXTIME(1009375509), FROM_UNIXTIME(1009375509, '%Y %D %M')
+  rows=1 fields=6
+  [UNIX_TIMESTAMP('2001-12-26 14:05:09')] table='' type=int len=10 flags='not_null' max=10 num=1 blob=0
+  [UNIX_TIMESTAMP('1969-12-31 23:59:59')] table='' type=int len=10 flags='not_null' max=1 num=1 blob=0
+  [UNIX_TIMESTAMP('2038-01-19 03:14:08')] table='' type=int len=10 flags='not_null' max=1 num=1 blob=0
+  [UNIX_TIMESTAMP(20011226)] table='' type=int len=10 flags='not_null' max=10 num=1 blob=0
+  [FROM_UNIXTIME(1009375509)] table='' type=string len=19 flags='not_null' max=19 num=0 blob=0
+  [FROM_UNIXTIME(1009375509, '%Y %D %M')] table='' type=string len=19 flags='' max=18 num=0 blob=0
+  | '1009375509' | '0' | '0' | '1009324800' | '2001-12-26 14:05:09' | '2001 26th December'
+> SELECT FROM_UNIXTIME(0), FROM_UNIXTIME(-1), FROM_UNIXTIME(2147483648), FROM_UNIXTIME(1009375509) + 0, UNIX_TIMESTAMP(NULL)
+  rows=1 fields=5
+  [FROM_UNIXTIME(0)] table='' type=string len=19 flags='not_null' max=19 num=0 blob=0
+  [FROM_UNIXTIME(-1)] table='' type=string len=19 flags='not_null' max=19 num=0 blob=0
+  [FROM_UNIXTIME(2147483648)] table='' type=string len=19 flags='not_null' max=19 num=0 blob=0
+  [FROM_UNIXTIME(1009375509) + 0] table='' type=real len=17 flags='not_null' max=14 num=1 blob=0
+  [UNIX_TIMESTAMP(NULL)] table='' type=int len=10 flags='' max=0 num=1 blob=0
+  | '1970-01-01 00:00:00' | '1969-12-31 23:59:59' | '1901-12-13 20:45:52' | '20011226140509' | NULL
+> SELECT SEC_TO_TIME(3661), SEC_TO_TIME(-3661), SEC_TO_TIME(100000), SEC_TO_TIME(3661) + 0, TIME_TO_SEC('01:01:01'), TIME_TO_SEC('-01:00:00'), TIME_TO_SEC('25:00')
+  rows=1 fields=7
+  [SEC_TO_TIME(3661)] table='' type=string len=13 flags='' max=8 num=0 blob=0
+  [SEC_TO_TIME(-3661)] table='' type=string len=13 flags='' max=9 num=0 blob=0
+  [SEC_TO_TIME(100000)] table='' type=string len=13 flags='' max=8 num=0 blob=0
+  [SEC_TO_TIME(3661) + 0] table='' type=real len=23 flags='' max=5 num=1 blob=0
+  [TIME_TO_SEC('01:01:01')] table='' type=int len=10 flags='not_null' max=4 num=1 blob=0
+  [TIME_TO_SEC('-01:00:00')] table='' type=int len=10 flags='not_null' max=5 num=1 blob=0
+  [TIME_TO_SEC('25:00')] table='' type=int len=10 flags='not_null' max=5 num=1 blob=0
+  | '01:01:01' | '-01:01:01' | '27:46:40' | '10101' | '3661' | '-3600' | '90000'
+> SELECT PERIOD_ADD(200112, 1), PERIOD_ADD(0112, 13), PERIOD_ADD(200112, -12), PERIOD_DIFF(200202, 200112), PERIOD_DIFF(9912, 0001)
+  rows=1 fields=5
+  [PERIOD_ADD(200112, 1)] table='' type=int len=6 flags='not_null' max=6 num=1 blob=0
+  [PERIOD_ADD(0112, 13)] table='' type=int len=6 flags='not_null' max=6 num=1 blob=0
+  [PERIOD_ADD(200112, -12)] table='' type=int len=6 flags='not_null' max=6 num=1 blob=0
+  [PERIOD_DIFF(200202, 200112)] table='' type=int len=6 flags='not_null' max=1 num=1 blob=0
+  [PERIOD_DIFF(9912, 0001)] table='' type=int len=6 flags='not_null' max=2 num=1 blob=0
+  | '200201' | '200301' | '200012' | '2' | '-1'
+> SELECT DATE_ADD('2001-12-26', INTERVAL 1 DAY), DATE_ADD('2001-12-31 23:59:59', INTERVAL 1 SECOND), DATE_SUB('2001-03-31', INTERVAL 1 MONTH), ADDDATE('2000-02-29', INTERVAL 1 YEAR), SUBDATE('2001-12-26', INTERVAL 30 DAY)
+  rows=1 fields=5
+  [DATE_ADD('2001-12-26', INTERVAL 1 DAY)] table='' type=string len=19 flags='' max=10 num=0 blob=0
+  [DATE_ADD('2001-12-31 23:59:59', INTERVAL 1 SECOND)] table='' type=string len=19 flags='' max=19 num=0 blob=0
+  [DATE_SUB('2001-03-31', INTERVAL 1 MONTH)] table='' type=string len=19 flags='' max=10 num=0 blob=0
+  [ADDDATE('2000-02-29', INTERVAL 1 YEAR)] table='' type=string len=19 flags='' max=10 num=0 blob=0
+  [SUBDATE('2001-12-26', INTERVAL 30 DAY)] table='' type=string len=19 flags='' max=10 num=0 blob=0
+  | '2001-12-27' | '2002-01-01 00:00:00' | '2001-02-28' | '2001-02-28' | '2001-11-26'
+> SELECT DATE_ADD('2001-12-26', INTERVAL '1:30' HOUR_MINUTE), DATE_ADD('2001-12-26 10:00:00', INTERVAL '1 1:1:1' DAY_SECOND), DATE_ADD('2001-12-26', INTERVAL '2-3' YEAR_MONTH), DATE_ADD('2001-12-26', INTERVAL -1 DAY_HOUR)
+  rows=1 fields=4
+  [DATE_ADD('2001-12-26', INTERVAL '1:30' HOUR_MINUTE)] table='' type=string len=19 flags='' max=19 num=0 blob=0
+  [DATE_ADD('2001-12-26 10:00:00', INTERVAL '1 1:1:1' DAY_SECOND)] table='' type=string len=19 flags='' max=19 num=0 blob=0
+  [DATE_ADD('2001-12-26', INTERVAL '2-3' YEAR_MONTH)] table='' type=string len=19 flags='' max=10 num=0 blob=0
+  [DATE_ADD('2001-12-26', INTERVAL -1 DAY_HOUR)] table='' type=string len=19 flags='' max=19 num=0 blob=0
+  | '2001-12-26 01:30:00' | '2001-12-27 11:01:01' | '2004-03-26' | '2001-12-25 23:00:00'
+> SELECT '2001-12-26' + INTERVAL 1 DAY, INTERVAL 1 MONTH + '2001-01-31', '2001-12-26' - INTERVAL 1 YEAR, DATE_ADD('garbage', INTERVAL 1 DAY), DATE_ADD(NULL, INTERVAL 1 DAY), DATE_ADD('2001-12-26', INTERVAL NULL DAY)
+  rows=1 fields=6
+  ['2001-12-26' + INTERVAL 1 DAY] table='' type=string len=19 flags='' max=10 num=0 blob=0
+  [INTERVAL 1 MONTH + '2001-01-31'] table='' type=string len=19 flags='' max=10 num=0 blob=0
+  ['2001-12-26' - INTERVAL 1 YEAR] table='' type=string len=19 flags='' max=10 num=0 blob=0
+  [DATE_ADD('garbage', INTERVAL 1 DAY)] table='' type=string len=19 flags='' max=0 num=0 blob=0
+  [DATE_ADD(NULL, INTERVAL 1 DAY)] table='' type=string len=19 flags='' max=0 num=0 blob=0
+  [DATE_ADD('2001-12-26', INTERVAL NULL DAY)] table='' type=string len=19 flags='' max=0 num=0 blob=0
+  | '2001-12-27' | '2001-02-28' | '2000-12-26' | NULL | NULL | NULL
+> SELECT EXTRACT(YEAR FROM '2001-12-26'), EXTRACT(YEAR_MONTH FROM '2001-12-26 14:05'), EXTRACT(DAY_MINUTE FROM '2001-12-26 14:05:09'), EXTRACT(HOUR FROM '14:05:09'), EXTRACT(MINUTE_SECOND FROM '2001-12-26 14:05:09')
+  rows=1 fields=5
+  [EXTRACT(YEAR FROM '2001-12-26')] table='' type=int len=4 flags='' max=4 num=1 blob=0
+  [EXTRACT(YEAR_MONTH FROM '2001-12-26 14:05')] table='' type=int len=6 flags='' max=6 num=1 blob=0
+  [EXTRACT(DAY_MINUTE FROM '2001-12-26 14:05:09')] table='' type=int len=11 flags='' max=6 num=1 blob=0
+  [EXTRACT(HOUR FROM '14:05:09')] table='' type=int len=2 flags='' max=2 num=1 blob=0
+  [EXTRACT(MINUTE_SECOND FROM '2001-12-26 14:05:09')] table='' type=int len=4 flags='' max=3 num=1 blob=0
+  | '2001' | '200112' | '261405' | '14' | '509'
+> SELECT '2001-12-26' < '2001-12-3', '2001-12-26' = 20011226, CURDATE() > '2000-01-01', NOW() > 20000101000000, '2001-12-26' + 0, '14:05' + 0
+  rows=1 fields=6
+  ['2001-12-26' < '2001-12-3'] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  ['2001-12-26' = 20011226] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [CURDATE() > '2000-01-01'] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [NOW() > 20000101000000] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  ['2001-12-26' + 0] table='' type=real len=23 flags='not_null' max=4 num=1 blob=0
+  ['14:05' + 0] table='' type=real len=23 flags='not_null' max=2 num=1 blob=0
+  | '1' | '0' | '1' | '1' | '2001' | '14'
+> SELECT DATE_FORMAT(NOW(), '%Y') >= 2001, LENGTH(NOW()), LENGTH(CURTIME()), LENGTH(CURDATE() + 0), LENGTH(NOW() + 0), LENGTH(UNIX_TIMESTAMP()), SYSDATE() = NOW(), CURRENT_DATE = CURDATE()
+  rows=1 fields=8
+  [DATE_FORMAT(NOW(), '%Y') >= 2001] table='' type=int len=1 flags='' max=1 num=1 blob=0
+  [LENGTH(NOW())] table='' type=int len=10 flags='not_null' max=2 num=1 blob=0
+  [LENGTH(CURTIME())] table='' type=int len=10 flags='not_null' max=1 num=1 blob=0
+  [LENGTH(CURDATE() + 0)] table='' type=int len=10 flags='not_null' max=1 num=1 blob=0
+  [LENGTH(NOW() + 0)] table='' type=int len=10 flags='not_null' max=2 num=1 blob=0
+  [LENGTH(UNIX_TIMESTAMP())] table='' type=int len=10 flags='not_null' max=2 num=1 blob=0
+  [SYSDATE() = NOW()] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [CURRENT_DATE = CURDATE()] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  | '1' | '19' | '8' | '8' | '14' | '10' | '1' | '1'
+> CREATE TABLE cv (i int, u int unsigned, t tinyint, f float, d double, dc decimal(5,2), c char(5), vc varchar(5), dt date, tm time, dtt datetime, y year, e enum('a','b'), s set('x','y'))
+  ok affected=0 insert_id=0
+> INSERT INTO cv VALUES ('12abc', -1, 300, '1.5e3', 'x', '12.345', 'toolongvalue', 12345678, '2001-02-30', '25:61:61', '2001-12-26 25:00:00', 1900, 'c', 'x,z')
+  ok affected=1 insert_id=0
+> INSERT INTO cv VALUES (1e10, 1e10, -200, 1e40, 1e400, -999.999, 1.23456789, 3.14159265, 20011226, 123456, 20011226143005, '69', 3, 3)
+  ok affected=1 insert_id=0
+> INSERT INTO cv VALUES (NULL, '  5', '0x7f', '', '1e', '.5', 'ab  ', ' ab ', '01-2-3', '1:2', '2001-1-2 3:4:5', 70, '', '')
+  ok affected=1 insert_id=0
+> SELECT * FROM cv
+  rows=3 fields=14
+  | '12' | '0' | '127' | '1500' | '0' | '12.34' | 'toolo' | '12345' | '2001-02-30' | '00:00:00' | '0000-00-00 00:00:00' | '0000' | '' | 'x'
+  | '2147483647' | '4294967295' | '-128' | '3.40282e+38' | 'inf' | '-999.99' | '1' | '3' | '2001-12-26' | '12:34:56' | '2001-12-26 14:30:05' | '2069' | '' | 'x,y'
+  | NULL | '5' | '0' | '0' | '1' | '0.50' | 'ab' | ' ab' | '2001-02-03' | '01:02:00' | '2001-01-02 03:04:05' | '1970' | '' | ''
+> SELECT i + 0, u - 1, t * 1.5, f / 3, dc * 2, CONCAT(c, '|'), y + 0, e + 0, s + 0, dt + 0, tm + 0, dtt + 0 FROM cv
+  rows=3 fields=12
+  | '12' | '-1' | '190.5' | '500' | '24.68' | 'toolo|' | '0' | '0' | '1' | '20010230' | '0' | '0'
+  | '2147483647' | '4294967294' | '-192.0' | '1.1342744887951e+38' | '-1999.98' | '1|' | '2069' | '0' | '3' | '20011226' | '123456' | '20011226143005'
+  | NULL | '4' | '0.0' | '0' | '1.00' | 'ab|' | '1970' | '0' | '0' | '20010203' | '10200' | '20010102030405'
