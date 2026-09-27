@@ -111,7 +111,11 @@
       const t0 = Date.now();
 
       const mysqld = opts.mysqld !== false ? this.mysqld : null;
-      if (mysqld) mysqld.syncFrom(opts.files);
+      if (mysqld) {
+        // mysqld runs on the same simulated machine, in the same time zone
+        if (mysqld.setTimeZone) mysqld.setTimeZone((opts.env && opts.env.TZ) || 'UTC');
+        mysqld.syncFrom(opts.files);
+      }
 
       let Module;
       const moduleArgs = {
