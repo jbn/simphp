@@ -6,3 +6,5 @@ reference/php-4.1.1.tar.gz
 reference/build.log
 /php-4.1.1.tar.gz
 /vendor/
+reference/mysql-3.23.49.tar.gz
+tests/mysql/.ref/
