@@ -1,0 +1,262 @@
+> CREATE TABLE t (
+  id int(10) unsigned NOT NULL auto_increment,
+  ti tinyint(4) NOT NULL default '0', si smallint(5) unsigned, mi mediumint, bi bigint(20) NOT NULL default '0',
+  zf int(6) unsigned zerofill, fl float, fl2 float(7,2), db double NOT NULL default '0', dbl double(10,3),
+  de decimal(8,2) NOT NULL default '0.00', de0 decimal(5), nu numeric(6,1),
+  c char(10) NOT NULL default '', cb char(10) binary, vc varchar(64), vcb varchar(20) binary NOT NULL default '',
+  tt tinytext, tx text NOT NULL, mt mediumtext, lt longtext, tb tinyblob, bl blob, mb mediumblob, lb longblob,
+  d date, dt datetime NOT NULL default '0000-00-00 00:00:00', tm time, yr year, yr2 year(2),
+  ts timestamp(14), ts8 timestamp(8), ts6 timestamp(6),
+  e enum('small','medium','large') NOT NULL default 'small', s set('a','b','c'),
+  u int unique, k varchar(10),
+  PRIMARY KEY (id), KEY k (k), KEY multi (c, vc)
+)
+  ok affected=0 insert_id=0
+> INSERT INTO t (ti, c, vc, tx, e, s, de, fl, db, ts) VALUES (1, 'abc', 'hello', 'text', 'large', 'a,c', 12.5, 1.5, 2.25, 20011226143005)
+  ok affected=1 insert_id=1
+> SELECT * FROM t
+  rows=1 fields=37
+  [id] table='t' type=int len=10 flags='not_null primary_key unsigned auto_increment' max=1 num=1 blob=0
+  [ti] table='t' type=int len=4 flags='not_null' max=1 num=1 blob=0
+  [si] table='t' type=int len=5 flags='unsigned' max=0 num=1 blob=0
+  [mi] table='t' type=int len=9 flags='' max=0 num=1 blob=0
+  [bi] table='t' type=int len=20 flags='not_null' max=1 num=1 blob=0
+  [zf] table='t' type=int len=6 flags='unsigned zerofill' max=0 num=1 blob=0
+  [fl] table='t' type=real len=12 flags='' max=3 num=1 blob=0
+  [fl2] table='t' type=real len=7 flags='' max=0 num=1 blob=0
+  [db] table='t' type=real len=22 flags='not_null' max=4 num=1 blob=0
+  [dbl] table='t' type=real len=10 flags='' max=0 num=1 blob=0
+  [de] table='t' type=real len=10 flags='not_null' max=5 num=1 blob=0
+  [de0] table='t' type=real len=6 flags='' max=0 num=1 blob=0
+  [nu] table='t' type=real len=8 flags='' max=0 num=1 blob=0
+  [c] table='t' type=string len=10 flags='not_null multiple_key' max=3 num=0 blob=0
+  [cb] table='t' type=string len=10 flags='binary' max=0 num=0 blob=0
+  [vc] table='t' type=string len=64 flags='' max=5 num=0 blob=0
+  [vcb] table='t' type=string len=20 flags='not_null binary' max=0 num=0 blob=0
+  [tt] table='t' type=blob len=255 flags='blob' max=0 num=0 blob=1
+  [tx] table='t' type=blob len=65535 flags='not_null blob' max=4 num=0 blob=1
+  [mt] table='t' type=blob len=16777215 flags='blob' max=0 num=0 blob=1
+  [lt] table='t' type=blob len=16777215 flags='blob' max=0 num=0 blob=1
+  [tb] table='t' type=blob len=255 flags='blob binary' max=0 num=0 blob=1
+  [bl] table='t' type=blob len=65535 flags='blob binary' max=0 num=0 blob=1
+  [mb] table='t' type=blob len=16777215 flags='blob binary' max=0 num=0 blob=1
+  [lb] table='t' type=blob len=16777215 flags='blob binary' max=0 num=0 blob=1
+  [d] table='t' type=date len=10 flags='' max=0 num=0 blob=0
+  [dt] table='t' type=datetime len=19 flags='not_null' max=19 num=0 blob=0
+  [tm] table='t' type=time len=8 flags='' max=0 num=0 blob=0
+  [yr] table='t' type=year len=4 flags='unsigned zerofill' max=0 num=1 blob=0
+  [yr2] table='t' type=year len=2 flags='unsigned zerofill' max=0 num=1 blob=0
+  [ts] table='t' type=timestamp len=14 flags='not_null unsigned zerofill timestamp' max=14 num=1 blob=0
+  [ts8] table='t' type=timestamp len=8 flags='not_null unsigned zerofill' max=8 num=1 blob=0
+  [ts6] table='t' type=timestamp len=6 flags='not_null unsigned zerofill' max=6 num=1 blob=0
+  [e] table='t' type=string len=6 flags='not_null enum' max=5 num=0 blob=0
+  [s] table='t' type=string len=5 flags='set' max=3 num=0 blob=0
+  [u] table='t' type=int len=11 flags='multiple_key' max=0 num=1 blob=0
+  [k] table='t' type=string len=10 flags='multiple_key' max=0 num=0 blob=0
+  | '1' | '1' | NULL | NULL | '0' | NULL | '1.5' | NULL | '2.25' | NULL | '12.50' | NULL | NULL | 'abc' | NULL | 'hello' | '' | NULL | 'text' | NULL | NULL | NULL | NULL | NULL | NULL | NULL | '0000-00-00 00:00:00' | NULL | NULL | NULL | '20011226143005' | '00000000' | '000000' | 'large' | 'a,c' | NULL | NULL
+> SELECT id AS ident, c AS col, t.vc, t.tx AS x FROM t
+  rows=1 fields=4
+  [ident] table='t' type=int len=10 flags='not_null primary_key unsigned auto_increment' max=1 num=1 blob=0
+  [col] table='t' type=string len=10 flags='not_null multiple_key' max=3 num=0 blob=0
+  [vc] table='t' type=string len=64 flags='' max=5 num=0 blob=0
+  [x] table='t' type=blob len=65535 flags='not_null blob' max=4 num=0 blob=1
+  | '1' | 'abc' | 'hello' | 'text'
+> SELECT x.id, x.c, y.id FROM t AS x, t y WHERE x.id = y.id
+  rows=1 fields=3
+  [id] table='x' type=int len=10 flags='not_null primary_key unsigned auto_increment' max=1 num=1 blob=0
+  [c] table='x' type=string len=10 flags='not_null multiple_key' max=3 num=0 blob=0
+  [id] table='y' type=int len=10 flags='not_null primary_key unsigned auto_increment' max=1 num=1 blob=0
+  | '1' | 'abc' | '1'
+> SELECT x.* FROM t x
+  rows=1 fields=37
+  [id] table='x' type=int len=10 flags='not_null primary_key unsigned auto_increment' max=1 num=1 blob=0
+  [ti] table='x' type=int len=4 flags='not_null' max=1 num=1 blob=0
+  [si] table='x' type=int len=5 flags='unsigned' max=0 num=1 blob=0
+  [mi] table='x' type=int len=9 flags='' max=0 num=1 blob=0
+  [bi] table='x' type=int len=20 flags='not_null' max=1 num=1 blob=0
+  [zf] table='x' type=int len=6 flags='unsigned zerofill' max=0 num=1 blob=0
+  [fl] table='x' type=real len=12 flags='' max=3 num=1 blob=0
+  [fl2] table='x' type=real len=7 flags='' max=0 num=1 blob=0
+  [db] table='x' type=real len=22 flags='not_null' max=4 num=1 blob=0
+  [dbl] table='x' type=real len=10 flags='' max=0 num=1 blob=0
+  [de] table='x' type=real len=10 flags='not_null' max=5 num=1 blob=0
+  [de0] table='x' type=real len=6 flags='' max=0 num=1 blob=0
+  [nu] table='x' type=real len=8 flags='' max=0 num=1 blob=0
+  [c] table='x' type=string len=10 flags='not_null multiple_key' max=3 num=0 blob=0
+  [cb] table='x' type=string len=10 flags='binary' max=0 num=0 blob=0
+  [vc] table='x' type=string len=64 flags='' max=5 num=0 blob=0
+  [vcb] table='x' type=string len=20 flags='not_null binary' max=0 num=0 blob=0
+  [tt] table='x' type=blob len=255 flags='blob' max=0 num=0 blob=1
+  [tx] table='x' type=blob len=65535 flags='not_null blob' max=4 num=0 blob=1
+  [mt] table='x' type=blob len=16777215 flags='blob' max=0 num=0 blob=1
+  [lt] table='x' type=blob len=16777215 flags='blob' max=0 num=0 blob=1
+  [tb] table='x' type=blob len=255 flags='blob binary' max=0 num=0 blob=1
+  [bl] table='x' type=blob len=65535 flags='blob binary' max=0 num=0 blob=1
+  [mb] table='x' type=blob len=16777215 flags='blob binary' max=0 num=0 blob=1
+  [lb] table='x' type=blob len=16777215 flags='blob binary' max=0 num=0 blob=1
+  [d] table='x' type=date len=10 flags='' max=0 num=0 blob=0
+  [dt] table='x' type=datetime len=19 flags='not_null' max=19 num=0 blob=0
+  [tm] table='x' type=time len=8 flags='' max=0 num=0 blob=0
+  [yr] table='x' type=year len=4 flags='unsigned zerofill' max=0 num=1 blob=0
+  [yr2] table='x' type=year len=2 flags='unsigned zerofill' max=0 num=1 blob=0
+  [ts] table='x' type=timestamp len=14 flags='not_null unsigned zerofill timestamp' max=14 num=1 blob=0
+  [ts8] table='x' type=timestamp len=8 flags='not_null unsigned zerofill' max=8 num=1 blob=0
+  [ts6] table='x' type=timestamp len=6 flags='not_null unsigned zerofill' max=6 num=1 blob=0
+  [e] table='x' type=string len=6 flags='not_null enum' max=5 num=0 blob=0
+  [s] table='x' type=string len=5 flags='set' max=3 num=0 blob=0
+  [u] table='x' type=int len=11 flags='multiple_key' max=0 num=1 blob=0
+  [k] table='x' type=string len=10 flags='multiple_key' max=0 num=0 blob=0
+  | '1' | '1' | NULL | NULL | '0' | NULL | '1.5' | NULL | '2.25' | NULL | '12.50' | NULL | NULL | 'abc' | NULL | 'hello' | '' | NULL | 'text' | NULL | NULL | NULL | NULL | NULL | NULL | NULL | '0000-00-00 00:00:00' | NULL | NULL | NULL | '20011226143005' | '00000000' | '000000' | 'large' | 'a,c' | NULL | NULL
+> SELECT 1, 1.5, -3, 'str', NULL, 1+1, 2*3.5, 10/4, 7 % 3, 1=1, 'a'='A', CONCAT('a','b'), NOW() IS NOT NULL
+  rows=1 fields=13
+  [1] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [1.5] table='' type=real len=3 flags='not_null' max=3 num=1 blob=0
+  [-3] table='' type=int len=2 flags='not_null' max=2 num=1 blob=0
+  [str] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [NULL] table='' type=null len=4 flags='' max=0 num=1 blob=0
+  [1+1] table='' type=int len=17 flags='not_null' max=1 num=1 blob=0
+  [2*3.5] table='' type=real len=18 flags='not_null' max=3 num=1 blob=0
+  [10/4] table='' type=real len=4 flags='' max=4 num=1 blob=0
+  [7 % 3] table='' type=int len=1 flags='' max=1 num=1 blob=0
+  [1=1] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  ['a'='A'] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [CONCAT('a','b')] table='' type=string len=2 flags='not_null' max=2 num=0 blob=0
+  [NOW() IS NOT NULL] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  | '1' | '1.5' | '-3' | 'str' | NULL | '2' | '7.0' | '2.50' | '1' | '1' | '1' | 'ab' | '1'
+> SELECT 7 DIV 2
+  ERR 1064: You have an error in your SQL syntax near '2' at line 1
+> SELECT COUNT(*), COUNT(id), SUM(ti), AVG(ti), MIN(c), MAX(de), SUM(de), MIN(d), MAX(dt), STD(ti) FROM t
+  rows=1 fields=10
+  [COUNT(*)] table='' type=int len=21 flags='not_null' max=1 num=1 blob=0
+  [COUNT(id)] table='' type=int len=21 flags='not_null' max=1 num=1 blob=0
+  [SUM(ti)] table='' type=real len=17 flags='' max=1 num=1 blob=0
+  [AVG(ti)] table='' type=real len=17 flags='' max=6 num=1 blob=0
+  [MIN(c)] table='' type=string len=10 flags='not_null multiple_key' max=3 num=0 blob=0
+  [MAX(de)] table='' type=real len=10 flags='not_null' max=5 num=1 blob=0
+  [SUM(de)] table='' type=real len=19 flags='' max=5 num=1 blob=0
+  [MIN(d)] table='' type=date len=10 flags='' max=0 num=0 blob=0
+  [MAX(dt)] table='' type=datetime len=19 flags='not_null' max=19 num=0 blob=0
+  [STD(ti)] table='' type=real len=17 flags='' max=6 num=1 blob=0
+  | '1' | '1' | '1' | '1.0000' | 'abc' | '12.50' | '12.50' | NULL | '0000-00-00 00:00:00' | '0.0000'
+> SELECT id+0, c+0, CONCAT(id), LENGTH(c), UPPER(c), de*2, fl*2, ti+de, IFNULL(vc,'x'), IF(ti,c,vc), CASE WHEN ti THEN 1 ELSE 0 END FROM t
+  rows=1 fields=11
+  [id+0] table='' type=int len=17 flags='not_null' max=1 num=1 blob=0
+  [c+0] table='' type=real len=23 flags='not_null' max=1 num=1 blob=0
+  [CONCAT(id)] table='' type=string len=10 flags='not_null' max=1 num=0 blob=0
+  [LENGTH(c)] table='' type=int len=10 flags='not_null' max=1 num=1 blob=0
+  [UPPER(c)] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [de*2] table='' type=real len=19 flags='not_null' max=5 num=1 blob=0
+  [fl*2] table='' type=real len=23 flags='' max=1 num=1 blob=0
+  [ti+de] table='' type=real len=19 flags='not_null' max=5 num=1 blob=0
+  [IFNULL(vc,'x')] table='' type=string len=64 flags='not_null' max=5 num=0 blob=0
+  [IF(ti,c,vc)] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [CASE WHEN ti THEN 1 ELSE 0 END] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  | '1' | '0' | '1' | '3' | 'ABC' | '25.00' | '3' | '13.50' | 'hello' | 'abc' | '1'
+> SELECT DATE_FORMAT(dt,'%Y'), YEAR(dt), TO_DAYS(dt), dt+0, d, ts+0 > 0, e+0, s+0, FIELD(e,'large') FROM t
+  rows=1 fields=9
+  [DATE_FORMAT(dt,'%Y')] table='' type=string len=4 flags='' max=4 num=0 blob=0
+  [YEAR(dt)] table='' type=int len=4 flags='' max=1 num=1 blob=0
+  [TO_DAYS(dt)] table='' type=int len=6 flags='not_null' max=0 num=1 blob=0
+  [dt+0] table='' type=real len=23 flags='not_null' max=1 num=1 blob=0
+  [d] table='t' type=date len=10 flags='' max=0 num=0 blob=0
+  [ts+0 > 0] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [e+0] table='' type=real len=23 flags='not_null' max=1 num=1 blob=0
+  [s+0] table='' type=real len=23 flags='' max=1 num=1 blob=0
+  [FIELD(e,'large')] table='' type=int len=3 flags='not_null' max=1 num=1 blob=0
+  | '0000' | '0' | NULL | '0' | NULL | '1' | '3' | '5' | '1'
+> SELECT LEFT(tx,2), SUBSTRING(vc,2), REPLACE(c,'a','b'), LPAD(id,5,'0'), TRIM(c), FORMAT(de,1), ROUND(de), ROUND(fl,1), FLOOR(de), ABS(-de) FROM t
+  rows=1 fields=10
+  [LEFT(tx,2)] table='' type=string len=2 flags='not_null' max=2 num=0 blob=0
+  [SUBSTRING(vc,2)] table='' type=string len=63 flags='' max=4 num=0 blob=0
+  [REPLACE(c,'a','b')] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [LPAD(id,5,'0')] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [TRIM(c)] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [FORMAT(de,1)] table='' type=string len=12 flags='not_null' max=4 num=0 blob=0
+  [ROUND(de)] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [ROUND(fl,1)] table='' type=real len=12 flags='' max=3 num=1 blob=0
+  [FLOOR(de)] table='' type=int len=9 flags='not_null' max=2 num=1 blob=0
+  [ABS(-de)] table='' type=real len=10 flags='not_null' max=5 num=1 blob=0
+  | 'te' | 'ello' | 'bbc' | '00001' | 'abc' | '12.5' | '12' | '1.5' | '12' | '12.50'
+> SELECT DISTINCT c FROM t
+  rows=1 fields=1
+  [c] table='t' type=string len=10 flags='not_null multiple_key' max=3 num=0 blob=0
+  | 'abc'
+> SELECT c, COUNT(*) AS n FROM t GROUP BY c
+  rows=1 fields=2
+  [c] table='t' type=string len=10 flags='not_null multiple_key' max=3 num=0 blob=0
+  [n] table='' type=int len=21 flags='not_null' max=1 num=1 blob=0
+  | 'abc' | '1'
+stdClass Object
+(
+    [name] => id
+    [table] => t
+    [def] => 
+    [max_length] => 1
+    [not_null] => 1
+    [primary_key] => 1
+    [multiple_key] => 0
+    [unique_key] => 0
+    [numeric] => 1
+    [blob] => 0
+    [type] => int
+    [unsigned] => 1
+    [zerofill] => 0
+)
+stdClass Object
+(
+    [name] => c
+    [table] => t
+    [def] => 
+    [max_length] => 3
+    [not_null] => 1
+    [primary_key] => 0
+    [multiple_key] => 1
+    [unique_key] => 0
+    [numeric] => 0
+    [blob] => 0
+    [type] => string
+    [unsigned] => 0
+    [zerofill] => 0
+)
+37 fields via mysql_list_fields
+  id t int 10 not_null primary_key unsigned auto_increment
+  ti t int 4 not_null
+  si t int 5 unsigned
+  mi t int 9 
+  bi t int 20 not_null
+  zf t int 6 unsigned zerofill
+  fl t real 12 
+  fl2 t real 7 
+  db t real 22 not_null
+  dbl t real 10 
+  de t real 10 not_null
+  de0 t real 6 
+  nu t real 8 
+  c t string 10 not_null multiple_key
+  cb t string 10 binary
+  vc t string 64 
+  vcb t string 20 not_null binary
+  tt t blob 255 blob
+  tx t blob 65535 not_null blob
+  mt t blob 16777215 blob
+  lt t blob 16777215 blob
+  tb t blob 255 blob binary
+  bl t blob 65535 blob binary
+  mb t blob 16777215 blob binary
+  lb t blob 16777215 blob binary
+  d t date 10 
+  dt t datetime 19 not_null
+  tm t time 8 
+  yr t year 4 unsigned zerofill
+  yr2 t year 2 unsigned zerofill
+  ts t timestamp 14 not_null unsigned zerofill timestamp
+  ts8 t timestamp 8 not_null unsigned zerofill
+  ts6 t timestamp 6 not_null unsigned zerofill
+  e t string 6 not_null enum
+  s t string 5 set
+  u t int 11 multiple_key
+  k t string 10 multiple_key
+<br>
+<b>Warning</b>:  Unable to save MySQL query result in <b>/var/www/fields.php</b> on line <b>56</b><br>
+bool(false)
+1146: Table 'test.nosuch' doesn't exist

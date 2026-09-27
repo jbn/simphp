@@ -1,0 +1,132 @@
+> SELECT DATE_FORMAT('2001-12-26 14:30:05', '%a %b %c %D %d %e %H %h %I %i %j %k %l %M %m %p %r %S %s %T %U %u %V %v %W %w %X %x %Y %y %% %Q')
+  rows=1 fields=1
+  | 'Wed Dec 12 26th 26 26 14 02 02 30 360 14 2 December 12 PM 02:30:05 PM 05 05 14:30:05 52 52 52 52 Wednesday 3 2001 2001 2001 01 % Q'
+> SELECT DATE_FORMAT('2002-01-01', '%D %j %U %u %W'), DATE_FORMAT('1999-12-31 23:59:59', '%y%m%d%H%i%s'), DATE_FORMAT('2001-02-03 00:00:00', '%l:%i %p'), DATE_FORMAT('2001-02-03 12:00:00', '%h %p'), DATE_FORMAT('2001-01-11','%D'), DATE_FORMAT('2001-01-22','%D'), DATE_FORMAT('2001-01-13','%D')
+  rows=1 fields=7
+  | '1st 001 01 01 Tuesday' | '991231235959' | '12:00 AM' | '12 PM' | '11th' | '22nd' | '13th'
+> SELECT DATE_FORMAT('0000-00-00', '%Y-%m-%d %W'), DATE_FORMAT('0000-00-00 00:00:00', '%d.%m.%Y'), DATE_FORMAT(NULL, '%Y'), DATE_FORMAT('garbage', '%Y'), DATE_FORMAT(20011226, '%Y-%m-%d'), DATE_FORMAT('20011226143005', '%T')
+  rows=1 fields=6
+  | '0000-00-00 Saturday' | '00.00.0000' | NULL | NULL | '2001-12-26' | '14:30:05'
+> SELECT UNIX_TIMESTAMP('2001-12-26 00:00:00'), UNIX_TIMESTAMP('1970-01-01 00:00:00'), UNIX_TIMESTAMP('2038-01-19 03:14:07'), UNIX_TIMESTAMP('1969-12-31'), UNIX_TIMESTAMP('0000-00-00 00:00:00'), UNIX_TIMESTAMP(20011226), UNIX_TIMESTAMP('2001-12-26')
+  rows=1 fields=7
+  | '1009324800' | '0' | '0' | '0' | '0' | '1009324800' | '1009324800'
+> SELECT FROM_UNIXTIME(1009324800), FROM_UNIXTIME(0), FROM_UNIXTIME(1009324800, '%Y %D %M'), FROM_UNIXTIME(1009324800)+0, FROM_UNIXTIME(-1)
+  rows=1 fields=5
+  | '2001-12-26 00:00:00' | '1970-01-01 00:00:00' | '2001 26th December' | '20011226000000' | '1969-12-31 23:59:59'
+> SELECT TO_DAYS('2001-12-26'), FROM_DAYS(730845), TO_DAYS('0000-00-00'), DAYOFWEEK('2001-12-26'), WEEKDAY('2001-12-26'), DAYOFYEAR('2001-12-31'), WEEK('2001-12-31'), WEEK('2001-01-01'), WEEK('2001-12-31', 1), YEARWEEK('2001-12-31'), QUARTER('2001-08-01')
+  rows=1 fields=11
+  | '731210' | '2000-12-26' | NULL | '4' | '2' | '365' | '53' | '1' | '53' | '200201' | '3'
+> SELECT YEAR('2001-12-26'), MONTH('2001-12-26'), DAYOFMONTH('2001-12-26'), HOUR('10:05:03'), MINUTE('2001-12-26 10:05:03'), SECOND('10:05:03'), DAYNAME('2001-12-26'), MONTHNAME('2001-12-26'), YEAR('0000-00-00'), MONTH(NULL)
+  rows=1 fields=10
+  | '2001' | '12' | '26' | '10' | '5' | '3' | 'Wednesday' | 'December' | '0' | NULL
+> SELECT DATE_ADD('2001-12-31', INTERVAL 1 DAY), DATE_SUB('2001-03-01', INTERVAL 1 DAY), DATE_ADD('2001-01-31', INTERVAL 1 MONTH), DATE_ADD('2001-12-31 23:59:59', INTERVAL 1 SECOND), '2001-12-26' + INTERVAL 7 DAY, DATE_ADD('2001-12-26 10:00:00', INTERVAL '1:30' HOUR_MINUTE), DATE_ADD('2000-02-29', INTERVAL 1 YEAR), DATE_SUB('2001-01-01', INTERVAL '1-2' YEAR_MONTH), DATE_ADD('2001-01-01', INTERVAL -1 DAY), DATE_ADD('2001-12-26', INTERVAL 1 HOUR), DATE_ADD('0000-00-00', INTERVAL 1 DAY)
+  rows=1 fields=11
+  | '2002-01-01' | '2001-02-28' | '2001-02-28' | '2002-01-01 00:00:00' | '2002-01-02' | '2001-12-26 11:30:00' | '2001-02-28' | '1999-11-01' | '2000-12-31' | '2001-12-26 01:00:00' | NULL
+> SELECT ADDDATE('2001-12-26', INTERVAL 2 WEEK)
+  ERR 1064: You have an error in your SQL syntax near 'WEEK)' at line 1
+> SELECT PERIOD_ADD(200112, 2), PERIOD_DIFF(200202, 200112), SEC_TO_TIME(3661), TIME_TO_SEC('01:01:01'), SEC_TO_TIME(-10), TIME_FORMAT('14:05:09', '%H.%i.%s %p'), TIME_FORMAT('100:00:00', '%H %k')
+  rows=1 fields=7
+  | '200202' | '2' | '01:01:01' | '3661' | '-00:00:10' | '14.05.09 PM' | '100 100'
+> SELECT '2001-12-26' < '2001-12-27', '2001-12-26' = 20011226, 20011226 + 0
+  rows=1 fields=3
+  | '1' | '0' | '20011226'
+> SELECT CAST('2001-12-26' AS DATE)
+  ERR 1064: You have an error in your SQL syntax near '('2001-12-26' AS DATE)' at line 1
+> CREATE TABLE dt (id int NOT NULL auto_increment PRIMARY KEY, d date, t datetime, tm time, y year, ts timestamp(14), ts2 timestamp(10), ts3 timestamp(8), ts4 timestamp(6))
+  ok affected=0 insert_id=0
+> INSERT INTO dt (d, t, tm, y, ts, ts2, ts3, ts4) VALUES ('2001-12-26', '2001-12-26 14:30:05', '14:30:05', 2001, 20011226143005, '2001-12-26 14:30:05', '2001-12-26', 011226)
+  ok affected=1 insert_id=1
+> INSERT INTO dt (d, t, tm, y) VALUES ('01-2-3', '01-02-03 4:5:6', '4:5', 69)
+  ok affected=1 insert_id=2
+> INSERT INTO dt (d, t, tm, y) VALUES ('2001-13-45', '2001-02-30 25:61:61', '99:99:99', 1850)
+  ok affected=1 insert_id=3
+> INSERT INTO dt (d, t, tm, y) VALUES ('20011226', 20011226143005, 143005, '01')
+  ok affected=1 insert_id=4
+> INSERT INTO dt (d, t, tm, y) VALUES ('garbage', 'garbage', 'garbage', 'garbage')
+  ok affected=1 insert_id=5
+> INSERT INTO dt (d, t, tm, y) VALUES ('0000-00-00', '0000-00-00 00:00:00', '00:00:00', 0)
+  ok affected=1 insert_id=6
+> INSERT INTO dt (d, t, tm, y) VALUES ('2001.12.26', '2001/12/26 14.30.05', '-12:30:00', 2155)
+  ok affected=1 insert_id=7
+> INSERT INTO dt (d, t, tm, y) VALUES ('991231', '991231235959', '838:59:59', 99)
+  ok affected=1 insert_id=8
+> SELECT id, d, t, tm, y, d+0, t+0, tm+0, y+0 FROM dt ORDER BY id
+  rows=8 fields=9
+  | '1' | '2001-12-26' | '2001-12-26 14:30:05' | '14:30:05' | '2001' | '20011226' | '20011226143005' | '143005' | '2001'
+  | '2' | '2001-02-03' | '2001-02-03 04:05:06' | '04:05:00' | '2069' | '20010203' | '20010203040506' | '40500' | '2069'
+  | '3' | '0000-00-00' | '0000-00-00 00:00:00' | '00:00:00' | '0000' | '0' | '0' | '0' | '0'
+  | '4' | '2001-12-26' | '2001-12-26 14:30:05' | '14:30:05' | '2001' | '20011226' | '20011226143005' | '143005' | '2001'
+  | '5' | '0000-00-00' | '0000-00-00 00:00:00' | '00:00:00' | '2000' | '0' | '0' | '0' | '2000'
+  | '6' | '0000-00-00' | '0000-00-00 00:00:00' | '00:00:00' | '0000' | '0' | '0' | '0' | '0'
+  | '7' | '2001-12-26' | '2001-12-26 14:30:05' | '-12:30:00' | '2155' | '20011226' | '20011226143005' | '16654216' | '2155'
+  | '8' | '1999-12-31' | '1999-12-31 23:59:59' | '838:59:59' | '1999' | '19991231' | '19991231235959' | '8385959' | '1999'
+> SELECT id, ts, ts2, ts3, ts4 FROM dt WHERE id = 1
+  rows=1 fields=5
+  | '1' | '20011226143005' | '0112261430' | '20011226' | '011226'
+> SELECT COUNT(*) FROM dt WHERE ts IS NULL OR ts = 0
+  rows=1 fields=1
+  [COUNT(*)] table='' type=int len=21 flags='not_null' max=1 num=1 blob=0
+  | '0'
+> SELECT COUNT(*) FROM dt WHERE ts >= NOW() - INTERVAL 1 HOUR
+  rows=1 fields=1
+  [COUNT(*)] table='' type=int len=21 flags='not_null' max=1 num=1 blob=0
+  | '7'
+> SELECT id FROM dt WHERE d = '0000-00-00' ORDER BY id
+  rows=3 fields=1
+  | '3'
+  | '5'
+  | '6'
+> SELECT id FROM dt WHERE d IS NULL ORDER BY id
+  rows=0 fields=1
+> SELECT id, DATE_FORMAT(t, '%M %e, %Y') FROM dt WHERE t > '2000-01-01' ORDER BY t DESC
+  rows=4 fields=2
+  | '1' | 'December 26, 2001'
+  | '4' | 'December 26, 2001'
+  | '7' | 'December 26, 2001'
+  | '2' | 'February 3, 2001'
+> UPDATE dt SET ts = 20000101000000 WHERE id = 1
+  ok affected=1 insert_id=0
+> SELECT ts FROM dt WHERE id = 1
+  rows=1 fields=1
+  | '20000101000000'
+> UPDATE dt SET d = '2002-01-01' WHERE id = 1
+  ok affected=1 insert_id=0
+> SELECT ts = 20000101000000, ts > 20020101000000 FROM dt WHERE id = 1
+  rows=1 fields=2
+  | '0' | '1'
+> UPDATE dt SET ts = ts, d = '2003-01-01' WHERE id = 1
+  ok affected=1 insert_id=0
+> SELECT ts > 20020101000000 FROM dt WHERE id = 1
+  rows=1 fields=1
+  | '1'
+> UPDATE dt SET ts = 19991231235959 WHERE id = 1
+  ok affected=1 insert_id=0
+> UPDATE dt SET ts = NULL WHERE id = 1
+  ok affected=1 insert_id=0
+> SELECT ts IS NULL, ts > 20020101000000 FROM dt WHERE id = 1
+  rows=1 fields=2
+  | '0' | '1'
+> CREATE TABLE two (a timestamp, b timestamp, c int)
+  ok affected=0 insert_id=0
+> INSERT INTO two (c) VALUES (1)
+  ok affected=1 insert_id=0
+> SELECT a > 0, b, c FROM two
+  rows=1 fields=3
+  | '1' | '00000000000000' | '1'
+> INSERT INTO two VALUES (NULL, NULL, 2)
+  ok affected=1 insert_id=0
+> SELECT a > 0, b > 0, c FROM two ORDER BY c
+  rows=2 fields=3
+  | '1' | '0' | '1'
+  | '1' | '1' | '2'
+> DESCRIBE two
+  rows=3 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=13 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=0 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=0 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=0 num=0 blob=0
+  | 'a' | 'timestamp(14)' | 'YES' | '' | NULL | ''
+  | 'b' | 'timestamp(14)' | 'YES' | '' | NULL | ''
+  | 'c' | 'int(11)' | 'YES' | '' | NULL | ''

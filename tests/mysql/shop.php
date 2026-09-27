@@ -1,5 +1,5 @@
 <?php
-mysql_connect("localhost", "u", "p") or die(mysql_error());
+mysql_connect("localhost", "root", "") or die(mysql_error());
 mysql_query("CREATE DATABASE shop") or print(mysql_error() . "\n");
 mysql_query("CREATE DATABASE shop") or print(mysql_errno() . ": " . mysql_error() . "\n");
 mysql_select_db("shop");

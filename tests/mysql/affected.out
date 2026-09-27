@@ -1,0 +1,124 @@
+> CREATE TABLE a (id int NOT NULL auto_increment, name varchar(20) NOT NULL, n int, PRIMARY KEY (id), UNIQUE KEY name (name))
+  ok affected=0 insert_id=0
+> INSERT INTO a (name, n) VALUES ('x', 1)
+  ok affected=1 insert_id=1
+> INSERT INTO a (name, n) VALUES ('y', 2), ('z', 3), ('w', 4)
+  ok affected=3 insert_id=0
+> INSERT INTO a (id, name) VALUES (10, 'ten')
+  ok affected=1 insert_id=10
+> INSERT INTO a (name) VALUES ('eleven')
+  ok affected=1 insert_id=11
+> INSERT INTO a (id, name) VALUES (0, 'zero')
+  ok affected=1 insert_id=12
+> INSERT INTO a (id, name) VALUES (NULL, 'null')
+  ok affected=1 insert_id=13
+> INSERT INTO a (id, name) VALUES (5, 'five')
+  ok affected=1 insert_id=5
+> INSERT INTO a (name) VALUES ('after5')
+  ok affected=1 insert_id=14
+> INSERT IGNORE INTO a (name) VALUES ('x')
+  ok affected=0 insert_id=15
+> INSERT IGNORE INTO a (name) VALUES ('x'), ('v'), ('y')
+  ok affected=1 insert_id=0
+> REPLACE INTO a (id, name, n) VALUES (1, 'x', 100)
+  ok affected=2 insert_id=1
+> REPLACE INTO a (id, name, n) VALUES (200, 'brandnew', 1)
+  ok affected=1 insert_id=200
+> REPLACE INTO a (id, name, n) VALUES (2, 'z', 7)
+  ok affected=3 insert_id=2
+> REPLACE INTO a SET id = 300, name = 'setform'
+  ok affected=1 insert_id=300
+> SELECT id, name, n FROM a ORDER BY id
+  rows=12 fields=3
+  | '1' | 'x' | '100'
+  | '2' | 'z' | '7'
+  | '4' | 'w' | '4'
+  | '5' | 'five' | NULL
+  | '10' | 'ten' | NULL
+  | '11' | 'eleven' | NULL
+  | '12' | 'zero' | NULL
+  | '13' | 'null' | NULL
+  | '14' | 'after5' | NULL
+  | '15' | 'v' | NULL
+  | '200' | 'brandnew' | '1'
+  | '300' | 'setform' | NULL
+> SELECT LAST_INSERT_ID()
+  rows=1 fields=1
+  [last_insert_id()] table='' type=int len=21 flags='not_null' max=2 num=1 blob=0
+  | '15'
+> UPDATE a SET n = 5 WHERE id > 1000
+  ok affected=0 insert_id=0
+> UPDATE a SET n = n WHERE id = 1
+  ok affected=0 insert_id=0
+> UPDATE a SET n = 100 WHERE id = 1
+  ok affected=0 insert_id=0
+> UPDATE a SET n = 1 WHERE n IS NULL
+  ok affected=8 insert_id=0
+> UPDATE a SET n = n + 1 ORDER BY id LIMIT 3
+  ERR 1064: You have an error in your SQL syntax near 'ORDER BY id LIMIT 3' at line 1
+> UPDATE a SET name = 'X' WHERE id = 1
+  ok affected=1 insert_id=0
+> UPDATE a SET name = 'y' WHERE id = 1
+  ok affected=1 insert_id=0
+insert_id after update: 0
+> UPDATE a SET id = LAST_INSERT_ID(id + 1000) WHERE id = 300
+  ok affected=1 insert_id=1300
+insert_id after LAST_INSERT_ID(expr): 1300
+> SELECT LAST_INSERT_ID()
+  rows=1 fields=1
+  [last_insert_id()] table='' type=int len=21 flags='not_null' max=4 num=1 blob=0
+  | '1300'
+> DELETE FROM a WHERE id = 99999
+  ok affected=0 insert_id=0
+> DELETE FROM a WHERE id > 100
+  ok affected=2 insert_id=0
+> DELETE FROM a WHERE n > 3 LIMIT 1
+  ok affected=1 insert_id=0
+> DELETE FROM a WHERE 1
+  ok affected=9 insert_id=0
+> INSERT INTO a (name) VALUES ('fresh')
+  ok affected=1 insert_id=1301
+> DELETE FROM a
+  ok affected=0 insert_id=0
+> INSERT INTO a (name) VALUES ('again')
+  ok affected=1 insert_id=1
+> CREATE TABLE b (x int)
+  ok affected=0 insert_id=0
+> INSERT INTO b VALUES (1),(2),(3)
+  ok affected=3 insert_id=0
+> INSERT INTO b SELECT x + 10 FROM b
+  ERR 1066: Not unique table/alias: 'b'
+> INSERT INTO b (x) SELECT MAX(x) FROM b
+  ERR 1066: Not unique table/alias: 'b'
+> SELECT * FROM b ORDER BY x
+  rows=3 fields=1
+  | '1'
+  | '2'
+  | '3'
+empty num_rows=0 fetch=bool(false)
+
+num_rows=3 result(2)=3 result(0,'x')=1
+<br>
+<b>Warning</b>:  Offset 4 is invalid for MySQL result index 7 in <b>/var/www/affected.php</b> on line <b>67</b><br>
+seek 4: 2
+array: 2 3 3
+object: 
+unbuffered first=3
+table a (Tables_in_test)
+table b (Tables_in_test)
+dbs: 2 field Database len 64 type string
+  db mysql
+  db test
+bool(true)
+bool(false)
+1007: Can't create database 'second'. Database exists
+tables in second: 0
+bool(true)
+bool(false)
+1049: Unknown database 'nosuchdb'
+db_query: 3
+bool(true)
+bool(false)
+1008: Can't drop database 'second'. Database doesn't exist
+bool(false)
+1049: Unknown database 'nosuchdb'

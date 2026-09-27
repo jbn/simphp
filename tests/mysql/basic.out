@@ -1,4 +1,4 @@
-Connected: 3.23.49-log / Localhost via UNIX socket / proto 10
+Connected: 3.23.49 / Localhost via UNIX socket / proto 10
 insert id 1 affected 1
 insert id 2 affected 1
 insert id 3 affected 1
@@ -9,14 +9,14 @@ email:string:100:
 message:blob:65535:not_null blob
 rating:int:3:unsigned
 price:real:10:not_null
-len:int:21:not_null
-UPPER(name):string:6:
+len:int:10:not_null
+UPPER(name):string:50:not_null
 1 Rasmus <rasmus@php.net> Hello from 1995 r=5 p=9.50 len=15 RASMUS
 2 Zeev <> It's "great" r=255 p=0.00 len=12 ZEEV
-3 Andi <andi@zend.com> Zend Engine r=0 p=1234.57 len=11 ANDI
+3 Andi <andi@zend.com> Zend Engine r=0 p=1234.56 len=11 ANDI
 1 (case-insensitive match)
 noop update affected: 0
-update affected: 3
+update affected: 2
 1062: Duplicate entry '1' for key 1
 1146: Table 'test.nosuchtable' doesn't exist
 1054: Unknown column 'nosuchcol' in 'field list'
@@ -36,7 +36,7 @@ Array
     [1] => ab1
     [2] => n
     [3] => abc
-    [4] => 3
+    [4] => 3.50
     [5] => 428567f408994404
     [6] => e1bfd762321e409cee4ac0b6e841963c
     [7] => 1

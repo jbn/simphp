@@ -1,0 +1,144 @@
+> SELECT CONCAT('a', NULL), CONCAT_WS('-', 'a', NULL, 'b'), CONCAT(1, 2.50, 'x'), LENGTH('héllo'), CHAR_LENGTH('abc'), LOCATE('b', 'abcb'), LOCATE('b', 'abcb', 3), INSTR('foobar', 'bar'), POSITION('B' IN 'abc')
+  rows=1 fields=9
+  | NULL | 'a-b' | '12.50x' | '5' | '3' | '2' | '4' | '4' | '0'
+> SELECT LEFT('abc', 5), RIGHT('abc', 2), MID('abcdef', 2, 3), SUBSTRING('abcdef', 3), SUBSTRING('abcdef' FROM 2 FOR 2), SUBSTRING('abcdef', -2), SUBSTRING_INDEX('a.b.c', '.', 2), SUBSTRING_INDEX('a.b.c', '.', -2)
+  rows=1 fields=8
+  | 'abc' | 'bc' | 'bcd' | 'cdef' | 'bc' | '' | 'a.b' | 'b.c'
+> SELECT LTRIM('  a  '), RTRIM('  a  '), TRIM('  a  '), TRIM(LEADING 'x' FROM 'xxaxx'), TRIM(BOTH 'xy' FROM 'xyaxy'), TRIM(TRAILING FROM 'a  ')
+  rows=1 fields=6
+  | 'a  ' | '  a' | 'a' | 'axx' | 'a' | 'a'
+> SELECT LPAD('hi', 5, 'ab'), RPAD('hi', 5, 'ab'), LPAD('hello', 3, 'x'), REPEAT('ab', 3), SPACE(3), REVERSE('abc'), INSERT('abcdef', 2, 3, 'X'), REPLACE('aAbB', 'a', 'x'), ELT(2, 'a', 'b'), FIELD('b', 'a', 'B')
+  rows=1 fields=10
+  | 'abahi' | 'hiaba' | 'hel' | 'ababab' | '   ' | 'cba' | 'aXef' | 'xAbB' | 'b' | '0'
+> SELECT UPPER('äbc'), LOWER('ÄBC'), UCASE('x'), LCASE('X'), ASCII('A'), ASCII(''), ORD('a'), CHAR(65, 66, 67), HEX(255), HEX('ab'), BIN(10), OCT(8), CONV('ff', 16, 10), CONV(10, 10, 2)
+  rows=1 fields=14
+  | 'ÄBC' | 'äbc' | 'X' | 'x' | '65' | '0' | '97' | 'ABC' | 'FF' | '0' | '1010' | '10' | '255' | '1010'
+> SELECT SOUNDEX('Robert'), SOUNDEX('Tymczak'), MD5('abc'), PASSWORD('abc'), PASSWORD(''), LENGTH(ENCODE('x','y')), DECODE(ENCODE('secret','key'),'key'), LENGTH(ENCRYPT('x','ab'))
+  rows=1 fields=8
+  | 'R163' | 'T520' | '900150983cd24fb0d6963f7d28e17f72' | '7cd2b5942be28759' | '' | '1' | 'secret' | '13'
+> SELECT DES_ENCRYPT('x')
+  ERR 1064: You have an error in your SQL syntax near '('x')' at line 1
+> SELECT 'abc' = 'ABC', 'abc' = 'abc  ', 'abc' LIKE 'ABC', BINARY 'abc' = 'ABC', 'a' < 'B', STRCMP('a', 'B'), STRCMP('b', 'a'), 'Ä' = 'ä', 'ab' < 'ab '
+  rows=1 fields=9
+  | '1' | '1' | '1' | '0' | '1' | '1' | '1' | '1' | '0'
+> SELECT 'a_c' LIKE 'a\\_c', 'abc' LIKE 'a\\_c', 'a%c' LIKE 'a\\%c', 'abc' LIKE 'a|_c' ESCAPE '|', 'a_c' LIKE 'a|_c' ESCAPE '|', 'abc' LIKE '%', '' LIKE '%', NULL LIKE '%', 'abc' NOT LIKE 'a%'
+  rows=1 fields=9
+  | '1' | '0' | '1' | '0' | '1' | '1' | '1' | NULL | '0'
+> SELECT 'abc' REGEXP '^a', 'ABC' REGEXP '^a', 'abc' REGEXP 'x|c$', 'a.c' REGEXP 'a[.]c', 'abc' RLIKE '[[:alpha:]]+', 'abc' REGEXP 'b{2}', 'foo' REGEXP '[[:<:]]foo[[:>:]]', 'Abc' REGEXP BINARY '^a'
+  rows=1 fields=8
+  | '1' | '1' | '1' | '1' | '1' | '0' | '1' | '0'
+> SELECT 'a' REGEXP ''
+  ERR 1139: Got error 'empty (sub)expression' from regexp
+> SELECT 'a' REGEXP '('
+  ERR 1139: Got error 'parentheses not balanced' from regexp
+> CREATE TABLE p (id int NOT NULL auto_increment PRIMARY KEY, name varchar(20), code char(4) binary, note text, bl blob)
+  ok affected=0 insert_id=0
+> INSERT INTO p (name, code, note, bl) VALUES ('Alice', 'ab', 'Hello World', 'Hello World'), ('bob', 'AB', 'hello world', 'hello world'), ('CHARLIE', 'Ab', 'x', 'x'), ('alice ', 'ab ', 'y ', 'y '), ('Zoë', 'zz', NULL, NULL), ('a_b', 'a%b', 'z', 'z')
+  ok affected=6 insert_id=0
+> SELECT id FROM p WHERE name = 'ALICE'
+  rows=2 fields=1
+  | '1'
+  | '4'
+> SELECT id FROM p WHERE code = 'ab'
+  rows=2 fields=1
+  | '1'
+  | '4'
+> SELECT id FROM p WHERE note = 'HELLO WORLD'
+  rows=2 fields=1
+  | '1'
+  | '2'
+> SELECT id FROM p WHERE bl = 'HELLO WORLD'
+  rows=0 fields=1
+> SELECT id FROM p WHERE bl LIKE 'hello%'
+  rows=1 fields=1
+  | '2'
+> SELECT id FROM p WHERE name LIKE 'a%'
+  rows=3 fields=1
+  | '1'
+  | '4'
+  | '6'
+> SELECT id FROM p WHERE name LIKE 'a\\_%'
+  rows=1 fields=1
+  | '6'
+> SELECT id FROM p WHERE code LIKE 'a%'
+  rows=3 fields=1
+  | '1'
+  | '4'
+  | '6'
+> SELECT id FROM p WHERE name REGEXP '^[a-c]'
+  rows=5 fields=1
+  | '1'
+  | '2'
+  | '3'
+  | '4'
+  | '6'
+> SELECT id FROM p WHERE BINARY name = 'alice'
+  rows=1 fields=1
+  | '4'
+> SELECT id, CONCAT('[', name, ']'), CONCAT('[', code, ']'), LENGTH(code) FROM p ORDER BY id
+  rows=6 fields=4
+  | '1' | '[Alice]' | '[ab]' | '2'
+  | '2' | '[bob]' | '[AB]' | '2'
+  | '3' | '[CHARLIE]' | '[Ab]' | '2'
+  | '4' | '[alice]' | '[ab]' | '2'
+  | '5' | '[Zoë]' | '[zz]' | '2'
+  | '6' | '[a_b]' | '[a%b]' | '3'
+> SELECT name FROM p ORDER BY name
+  rows=6 fields=1
+  | 'Alice'
+  | 'alice'
+  | 'a_b'
+  | 'bob'
+  | 'CHARLIE'
+  | 'Zoë'
+> SELECT code FROM p ORDER BY code, id
+  rows=6 fields=1
+  | 'AB'
+  | 'Ab'
+  | 'a%b'
+  | 'ab'
+  | 'ab'
+  | 'zz'
+> SELECT name FROM p ORDER BY name DESC LIMIT 2
+  rows=2 fields=1
+  | 'Zoë'
+  | 'CHARLIE'
+> SELECT DISTINCT LOWER(name) AS n FROM p ORDER BY n
+  rows=5 fields=1
+  | 'alice'
+  | 'a_b'
+  | 'bob'
+  | 'charlie'
+  | 'zoë'
+> SELECT name, COUNT(*) FROM p GROUP BY name ORDER BY name
+  rows=5 fields=2
+  | 'Alice' | '2'
+  | 'a_b' | '1'
+  | 'bob' | '1'
+  | 'CHARLIE' | '1'
+  | 'Zoë' | '1'
+> SELECT id FROM p WHERE name IN ('ALICE', 'Bob') ORDER BY id
+  rows=3 fields=1
+  | '1'
+  | '2'
+  | '4'
+> SELECT id FROM p WHERE name BETWEEN 'b' AND 'd' ORDER BY id
+  rows=2 fields=1
+  | '2'
+  | '3'
+> SELECT MAX(name), MIN(name), MAX(code), MIN(code) FROM p
+  rows=1 fields=4
+  | 'Zoë' | 'Alice' | 'zz' | 'AB'
+> SELECT 1 + '1', '1e2' + 0, '0x10' + 0, 'abc' + 0, ' 12abc' * 2, '-' + 1, 1 = '1abc', 0 = 'abc', 'abc' = 0, NULL = NULL, NULL <=> NULL, 1 <=> NULL
+  rows=1 fields=12
+  | '2' | '100' | '16' | '0' | '24' | '1' | '1' | '1' | '1' | NULL | '1' | '0'
+> SELECT 5 DIV 0
+  ERR 1064: You have an error in your SQL syntax near '0' at line 1
+> SELECT 5 / 0, 5 % 0, LOG(0), SQRT(-1), 1/NULL, 0x41, 0x4142 + 0, 'a' || 'b', 1 && 0, !0, NOT 1, 3 XOR 1, 5 & 3, 5 | 3, 5 ^ 3, ~0, 1 << 3, 16 >> 2
+  ERR 1064: You have an error in your SQL syntax near '1, 5 & 3, 5 | 3, 5 ^ 3, ~0, 1 << 3, 16 >> 2' at line 1
+> SELECT IFNULL(NULL, 'x'), IFNULL(0, 'x'), NULLIF(1, 1), NULLIF(1, 2), IF(NULL, 'a', 'b'), IF('0', 'a', 'b'), IF('abc', 'a', 'b'), IF(0.1, 'a', 'b'), COALESCE(NULL, NULL, 3), ISNULL(1/0), INTERVAL(5, 1, 3, 7), GREATEST(1, '10', 2), LEAST('b', 'A', 'c')
+  rows=1 fields=13
+  | 'x' | '0' | NULL | '1' | 'b' | 'b' | 'b' | 'b' | '3' | '1' | '2' | '10' | 'A'
+> SELECT CASE 1 WHEN 1 THEN 'one' ELSE 'other' END, CASE WHEN 1 > 2 THEN 'x' END, CASE 'a' WHEN 'A' THEN 'ci' ELSE 'cs' END, CASE 1 WHEN 1 THEN 2 ELSE 'x' END
+  rows=1 fields=4
+  | 'one' | NULL | 'ci' | '2'

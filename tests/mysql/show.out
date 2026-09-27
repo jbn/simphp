@@ -1,0 +1,399 @@
+> CREATE TABLE sh (
+  id int(11) NOT NULL auto_increment,
+  name varchar(40) NOT NULL default 'anon',
+  email varchar(100) default NULL,
+  age tinyint(3) unsigned default '18',
+  score float(5,2) NOT NULL default '0.00',
+  bal decimal(10,2) default NULL,
+  kind enum('a','b') NOT NULL default 'b',
+  flags set('x','y') default NULL,
+  body text,
+  created datetime NOT NULL default '0000-00-00 00:00:00',
+  ts timestamp(14) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY email (email),
+  KEY name_age (name, age),
+  KEY created (created)
+) TYPE=MyISAM COMMENT='people'
+  ok affected=0 insert_id=0
+> SHOW CREATE TABLE sh
+  rows=1 fields=2
+  [Table] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [Create Table] table='' type=string len=1024 flags='not_null' max=602 num=0 blob=0
+  | 'sh' | 'CREATE TABLE `sh` (
+  `id` int(11) NOT NULL auto_increment,
+  `name` varchar(40) NOT NULL default 'anon',
+  `email` varchar(100) default NULL,
+  `age` tinyint(3) unsigned default '18',
+  `score` float(5,2) NOT NULL default '0.00',
+  `bal` decimal(10,2) default NULL,
+  `kind` enum('a','b') NOT NULL default 'b',
+  `flags` set('x','y') default NULL,
+  `body` text,
+  `created` datetime NOT NULL default '0000-00-00 00:00:00',
+  `ts` timestamp(14) NOT NULL,
+  PRIMARY KEY  (`id`),
+  UNIQUE KEY `email` (`email`),
+  KEY `name_age` (`name`,`age`),
+  KEY `created` (`created`)
+) TYPE=MyISAM COMMENT='people''
+> CREATE TABLE sh2 (a int, b char(3) binary NOT NULL, c int unsigned zerofill, d double(8,3), e year, f time, g date default '2001-01-01', h int NOT NULL default '-5', INDEX (a), UNIQUE (b))
+  ok affected=0 insert_id=0
+> SHOW CREATE TABLE sh2
+  rows=1 fields=2
+  [Table] table='' type=string len=64 flags='not_null' max=3 num=0 blob=0
+  [Create Table] table='' type=string len=1024 flags='not_null' max=345 num=0 blob=0
+  | 'sh2' | 'CREATE TABLE `sh2` (
+  `a` int(11) default NULL,
+  `b` char(3) binary NOT NULL default '',
+  `c` int(10) unsigned zerofill default NULL,
+  `d` double(8,3) default NULL,
+  `e` year(4) default NULL,
+  `f` time default NULL,
+  `g` date default '2001-01-01',
+  `h` int(11) NOT NULL default '-5',
+  UNIQUE KEY `b` (`b`),
+  KEY `a` (`a`)
+) TYPE=MyISAM'
+> SHOW CREATE TABLE nosuch
+  ERR 1146: Table 'test.nosuch' doesn't exist
+> DESCRIBE sh
+  rows=11 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=7 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=19 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=19 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=14 num=0 blob=0
+  | 'id' | 'int(11)' | '' | 'PRI' | NULL | 'auto_increment'
+  | 'name' | 'varchar(40)' | '' | 'MUL' | 'anon' | ''
+  | 'email' | 'varchar(100)' | 'YES' | 'MUL' | NULL | ''
+  | 'age' | 'tinyint(3) unsigned' | 'YES' | '' | '18' | ''
+  | 'score' | 'float(5,2)' | '' | '' | '0.00' | ''
+  | 'bal' | 'decimal(10,2)' | 'YES' | '' | NULL | ''
+  | 'kind' | 'enum('a','b')' | '' | '' | 'b' | ''
+  | 'flags' | 'set('x','y')' | 'YES' | '' | NULL | ''
+  | 'body' | 'text' | 'YES' | '' | NULL | ''
+  | 'created' | 'datetime' | '' | 'MUL' | '0000-00-00 00:00:00' | ''
+  | 'ts' | 'timestamp(14)' | 'YES' | '' | NULL | ''
+> DESCRIBE sh name
+  rows=1 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=4 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=11 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=0 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=4 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=0 num=0 blob=0
+  | 'name' | 'varchar(40)' | '' | 'MUL' | 'anon' | ''
+> DESCRIBE sh 'e%'
+  rows=1 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=5 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=12 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=0 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=0 num=0 blob=0
+  | 'email' | 'varchar(100)' | 'YES' | 'MUL' | NULL | ''
+> SHOW COLUMNS FROM sh
+  rows=11 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=7 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=19 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=19 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=14 num=0 blob=0
+  | 'id' | 'int(11)' | '' | 'PRI' | NULL | 'auto_increment'
+  | 'name' | 'varchar(40)' | '' | 'MUL' | 'anon' | ''
+  | 'email' | 'varchar(100)' | 'YES' | 'MUL' | NULL | ''
+  | 'age' | 'tinyint(3) unsigned' | 'YES' | '' | '18' | ''
+  | 'score' | 'float(5,2)' | '' | '' | '0.00' | ''
+  | 'bal' | 'decimal(10,2)' | 'YES' | '' | NULL | ''
+  | 'kind' | 'enum('a','b')' | '' | '' | 'b' | ''
+  | 'flags' | 'set('x','y')' | 'YES' | '' | NULL | ''
+  | 'body' | 'text' | 'YES' | '' | NULL | ''
+  | 'created' | 'datetime' | '' | 'MUL' | '0000-00-00 00:00:00' | ''
+  | 'ts' | 'timestamp(14)' | 'YES' | '' | NULL | ''
+> SHOW FIELDS FROM sh LIKE '%a%'
+  rows=6 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=7 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=19 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=19 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=0 num=0 blob=0
+  | 'name' | 'varchar(40)' | '' | 'MUL' | 'anon' | ''
+  | 'email' | 'varchar(100)' | 'YES' | 'MUL' | NULL | ''
+  | 'age' | 'tinyint(3) unsigned' | 'YES' | '' | '18' | ''
+  | 'bal' | 'decimal(10,2)' | 'YES' | '' | NULL | ''
+  | 'flags' | 'set('x','y')' | 'YES' | '' | NULL | ''
+  | 'created' | 'datetime' | '' | 'MUL' | '0000-00-00 00:00:00' | ''
+> SHOW COLUMNS FROM sh FROM test
+  rows=11 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=7 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=19 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=19 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=14 num=0 blob=0
+  | 'id' | 'int(11)' | '' | 'PRI' | NULL | 'auto_increment'
+  | 'name' | 'varchar(40)' | '' | 'MUL' | 'anon' | ''
+  | 'email' | 'varchar(100)' | 'YES' | 'MUL' | NULL | ''
+  | 'age' | 'tinyint(3) unsigned' | 'YES' | '' | '18' | ''
+  | 'score' | 'float(5,2)' | '' | '' | '0.00' | ''
+  | 'bal' | 'decimal(10,2)' | 'YES' | '' | NULL | ''
+  | 'kind' | 'enum('a','b')' | '' | '' | 'b' | ''
+  | 'flags' | 'set('x','y')' | 'YES' | '' | NULL | ''
+  | 'body' | 'text' | 'YES' | '' | NULL | ''
+  | 'created' | 'datetime' | '' | 'MUL' | '0000-00-00 00:00:00' | ''
+  | 'ts' | 'timestamp(14)' | 'YES' | '' | NULL | ''
+> SHOW COLUMNS FROM sh2
+  rows=8 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=25 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=10 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=0 num=0 blob=0
+  | 'a' | 'int(11)' | 'YES' | 'MUL' | NULL | ''
+  | 'b' | 'char(3) binary' | '' | 'PRI' | '' | ''
+  | 'c' | 'int(10) unsigned zerofill' | 'YES' | '' | NULL | ''
+  | 'd' | 'double(8,3)' | 'YES' | '' | NULL | ''
+  | 'e' | 'year(4)' | 'YES' | '' | NULL | ''
+  | 'f' | 'time' | 'YES' | '' | NULL | ''
+  | 'g' | 'date' | 'YES' | '' | '2001-01-01' | ''
+  | 'h' | 'int(11)' | '' | '' | '-5' | ''
+> SHOW FULL COLUMNS FROM sh2
+  rows=8 fields=7
+  [Field] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=25 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=10 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=0 num=0 blob=0
+  [Privileges] table='' type=string len=80 flags='not_null' max=31 num=0 blob=0
+  | 'a' | 'int(11)' | 'YES' | 'MUL' | NULL | '' | 'select,insert,update,references'
+  | 'b' | 'char(3) binary' | '' | 'PRI' | '' | '' | 'select,insert,update,references'
+  | 'c' | 'int(10) unsigned zerofill' | 'YES' | '' | NULL | '' | 'select,insert,update,references'
+  | 'd' | 'double(8,3)' | 'YES' | '' | NULL | '' | 'select,insert,update,references'
+  | 'e' | 'year(4)' | 'YES' | '' | NULL | '' | 'select,insert,update,references'
+  | 'f' | 'time' | 'YES' | '' | NULL | '' | 'select,insert,update,references'
+  | 'g' | 'date' | 'YES' | '' | '2001-01-01' | '' | 'select,insert,update,references'
+  | 'h' | 'int(11)' | '' | '' | '-5' | '' | 'select,insert,update,references'
+> SHOW INDEX FROM sh
+  rows=5 fields=10
+  [Table] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [Non_unique] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [Key_name] table='' type=string len=64 flags='not_null' max=8 num=0 blob=0
+  [Seq_in_index] table='' type=int len=2 flags='not_null' max=1 num=1 blob=0
+  [Column_name] table='' type=string len=64 flags='not_null' max=7 num=0 blob=0
+  [Collation] table='' type=string len=1 flags='' max=1 num=0 blob=0
+  [Cardinality] table='' type=int len=11 flags='' max=1 num=1 blob=0
+  [Sub_part] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [Packed] table='' type=string len=10 flags='' max=0 num=0 blob=0
+  [Comment] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'sh' | '0' | 'PRIMARY' | '1' | 'id' | 'A' | '0' | NULL | NULL | ''
+  | 'sh' | '0' | 'email' | '1' | 'email' | 'A' | NULL | NULL | NULL | ''
+  | 'sh' | '1' | 'name_age' | '1' | 'name' | 'A' | NULL | NULL | NULL | ''
+  | 'sh' | '1' | 'name_age' | '2' | 'age' | 'A' | NULL | NULL | NULL | ''
+  | 'sh' | '1' | 'created' | '1' | 'created' | 'A' | NULL | NULL | NULL | ''
+> SHOW KEYS FROM sh2
+  rows=2 fields=10
+  [Table] table='' type=string len=64 flags='not_null' max=3 num=0 blob=0
+  [Non_unique] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [Key_name] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [Seq_in_index] table='' type=int len=2 flags='not_null' max=1 num=1 blob=0
+  [Column_name] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [Collation] table='' type=string len=1 flags='' max=1 num=0 blob=0
+  [Cardinality] table='' type=int len=11 flags='' max=1 num=1 blob=0
+  [Sub_part] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [Packed] table='' type=string len=10 flags='' max=0 num=0 blob=0
+  [Comment] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'sh2' | '0' | 'b' | '1' | 'b' | 'A' | '0' | NULL | NULL | ''
+  | 'sh2' | '1' | 'a' | '1' | 'a' | 'A' | NULL | NULL | NULL | ''
+> SHOW INDEX FROM nosuch
+  ERR 1146: Table 'test.nosuch' doesn't exist
+> SHOW TABLES
+  rows=2 fields=1
+  [Tables_in_test] table='' type=string len=64 flags='not_null' max=3 num=0 blob=0
+  | 'sh'
+  | 'sh2'
+> SHOW TABLES LIKE 'sh%'
+  rows=2 fields=1
+  [Tables_in_test (sh%)] table='' type=string len=64 flags='not_null' max=3 num=0 blob=0
+  | 'sh'
+  | 'sh2'
+> SHOW TABLES FROM mysql
+  rows=6 fields=1
+  [Tables_in_mysql] table='' type=string len=64 flags='not_null' max=12 num=0 blob=0
+  | 'columns_priv'
+  | 'db'
+  | 'func'
+  | 'host'
+  | 'tables_priv'
+  | 'user'
+> SHOW DATABASES
+  rows=2 fields=1
+  [Database] table='' type=string len=64 flags='not_null' max=5 num=0 blob=0
+  | 'mysql'
+  | 'test'
+> SHOW DATABASES LIKE 't%'
+  rows=1 fields=1
+  [Database (t%)] table='' type=string len=64 flags='not_null' max=4 num=0 blob=0
+  | 'test'
+SHOW TABLE STATUS: 2 rows
+  Name string 64 
+  Type string 10 
+  Row_format string 10 
+  Rows int 21 
+  Avg_row_length int 21 
+  Data_length int 21 
+  Max_data_length int 21 
+  Index_length int 21 
+  Data_free int 21 
+  Auto_increment int 21 
+  Create_time datetime 19 
+  Update_time datetime 19 
+  Check_time datetime 19 
+  Create_options string 255 
+  Comment string 80 not_null
+  sh MyISAM Dynamic rows=0 auto='1' comment='people' options=''
+  sh2 MyISAM Fixed rows=0 auto=NULL comment='' options=''
+SHOW VARIABLES: fields 2 Variable_name 30 string Value 256
+  character_set = latin1
+  concurrent_insert = ON
+  delay_key_write = ON
+  have_bdb = NO
+  have_innodb = NO
+  have_isam = YES
+  have_raid = NO
+  have_openssl = NO
+  key_buffer_size = 8388600
+  language = /usr/local/mysql/share/mysql/english/
+  log = OFF
+  log_bin = OFF
+  lower_case_table_names = 0
+  max_allowed_packet = 1048576
+  max_connections = 100
+  net_buffer_length = 16384
+  protocol_version = 10
+  query_buffer_size = 0
+  sort_buffer = 2097144
+  table_type = MYISAM
+  timezone = UTC
+  version = 3.23.49
+  wait_timeout = 28800
+  (82 variables) back_log,basedir,binlog_cache_size,character_set,character_sets,concurrent_insert,connect_timeout,datadir,delay_key_write,delayed_insert_limit,delayed_insert_timeout,delayed_queue_size,flush,flush_time,have_bdb,have_gemini,have_innodb,have_isam,have_raid,have_openssl,init_file,interactive_timeout,join_buffer_size,key_buffer_size,language,large_files_support,locked_in_memory,log,log_update,log_bin,log_slave_updates,log_long_queries,long_query_time,low_priority_updates,lower_case_table_names,max_allowed_packet,max_binlog_cache_size,max_binlog_size,max_connections,max_connect_errors,max_delayed_threads,max_heap_table_size,max_join_size,max_sort_length,max_user_connections,max_tmp_tables,max_write_lock_count,myisam_max_extra_sort_file_size,myisam_max_sort_file_size,myisam_recover_options,myisam_sort_buffer_size,net_buffer_length,net_read_timeout,net_retry_count,net_write_timeout,open_files_limit,pid_file,port,protocol_version,record_buffer,record_rnd_buffer,query_buffer_size,safe_show_database,server_id,slave_net_timeout,skip_locking,skip_networking,skip_show_database,slow_launch_time,socket,sort_buffer,sql_mode,table_cache,table_type,thread_cache_size,thread_stack,transaction_isolation,timezone,tmp_table_size,tmpdir,version,wait_timeout
+> SHOW VARIABLES LIKE 'have%'
+  rows=6 fields=2
+  [Variable_name] table='' type=string len=30 flags='not_null' max=12 num=0 blob=0
+  [Value] table='' type=string len=256 flags='not_null' max=3 num=0 blob=0
+  | 'have_bdb' | 'NO'
+  | 'have_gemini' | 'NO'
+  | 'have_innodb' | 'NO'
+  | 'have_isam' | 'YES'
+  | 'have_raid' | 'NO'
+  | 'have_openssl' | 'NO'
+SHOW STATUS: fields 2 Variable_name Value
+  (111 variables) Aborted_clients,Aborted_connects,Bytes_received,Bytes_sent,Com_admin_commands,Com_alter_table,Com_analyze,Com_backup_table,Com_begin,Com_change_db,Com_change_master,Com_check,Com_commit,Com_create_db,Com_create_function,Com_create_index,Com_create_table,Com_delete,Com_drop_db,Com_drop_function,Com_drop_index,Com_drop_table,Com_flush,Com_grant,Com_insert,Com_insert_select,Com_kill,Com_load,Com_load_master_table,Com_lock_tables,Com_optimize,Com_purge,Com_rename_table,Com_repair,Com_replace,Com_replace_select,Com_reset,Com_restore_table,Com_revoke,Com_rollback,Com_select,Com_set_option,Com_show_binlogs,Com_show_create,Com_show_databases,Com_show_fields,Com_show_grants,Com_show_keys,Com_show_logs,Com_show_master_stat,Com_show_open_tables,Com_show_processlist,Com_show_slave_stat,Com_show_status,Com_show_tables,Com_show_variables,Com_slave_start,Com_slave_stop,Com_truncate,Com_unlock_tables,Com_update,Connections,Created_tmp_disk_tables,Created_tmp_tables,Created_tmp_files,Delayed_insert_threads,Delayed_writes,Delayed_errors,Flush_commands,Handler_delete,Handler_read_first,Handler_read_key,Handler_read_next,Handler_read_prev,Handler_read_rnd,Handler_read_rnd_next,Handler_update,Handler_write,Key_blocks_used,Key_read_requests,Key_reads,Key_write_requests,Key_writes,Max_used_connections,Not_flushed_key_blocks,Not_flushed_delayed_rows,Open_tables,Open_files,Open_streams,Opened_tables,Questions,Select_full_join,Select_full_range_join,Select_range,Select_range_check,Select_scan,Slave_running,Slave_open_temp_tables,Slow_launch_threads,Slow_queries,Sort_merge_passes,Sort_range,Sort_rows,Sort_scan,Table_locks_immediate,Table_locks_waited,Threads_cached,Threads_created,Threads_connected,Threads_running,Uptime
+  Com_select numeric=1
+SHOW PROCESSLIST: 1 rows
+  Id int not_null
+  User string not_null
+  Host string not_null
+  db string 
+  Command string not_null
+  Time string not_null
+  State string 
+  Info string 
+  root localhost 'test' Query NULL 'SHOW PROCESSLIST'
+> SHOW GRANTS FOR root@localhost
+  rows=1 fields=1
+  [Grants for root@localhost] table='' type=string len=1024 flags='not_null' max=67 num=0 blob=0
+  | 'GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION'
+> SHOW NOSUCH
+  ERR 1064: You have an error in your SQL syntax near 'NOSUCH' at line 1
+> SHOW TABLES FROM nosuchdb
+<br>
+<b>Warning</b>:  MySQL:  Unable to save result set in <b>/var/www/show.php</b> on line <b>9</b><br>
+  ERR 12: Can't read dir of './nosuchdb/' (Errcode: 2)
+> EXPLAIN sh
+  rows=11 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=7 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=19 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=19 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=14 num=0 blob=0
+  | 'id' | 'int(11)' | '' | 'PRI' | NULL | 'auto_increment'
+  | 'name' | 'varchar(40)' | '' | 'MUL' | 'anon' | ''
+  | 'email' | 'varchar(100)' | 'YES' | 'MUL' | NULL | ''
+  | 'age' | 'tinyint(3) unsigned' | 'YES' | '' | '18' | ''
+  | 'score' | 'float(5,2)' | '' | '' | '0.00' | ''
+  | 'bal' | 'decimal(10,2)' | 'YES' | '' | NULL | ''
+  | 'kind' | 'enum('a','b')' | '' | '' | 'b' | ''
+  | 'flags' | 'set('x','y')' | 'YES' | '' | NULL | ''
+  | 'body' | 'text' | 'YES' | '' | NULL | ''
+  | 'created' | 'datetime' | '' | 'MUL' | '0000-00-00 00:00:00' | ''
+  | 'ts' | 'timestamp(14)' | 'YES' | '' | NULL | ''
+> SHOW CREATE TABLE mysql.db
+  rows=1 fields=2
+  [Table] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [Create Table] table='' type=string len=1024 flags='not_null' max=777 num=0 blob=0
+  | 'db' | 'CREATE TABLE `db` (
+  `Host` char(60) binary NOT NULL default '',
+  `Db` char(64) binary NOT NULL default '',
+  `User` char(16) binary NOT NULL default '',
+  `Select_priv` enum('N','Y') NOT NULL default 'N',
+  `Insert_priv` enum('N','Y') NOT NULL default 'N',
+  `Update_priv` enum('N','Y') NOT NULL default 'N',
+  `Delete_priv` enum('N','Y') NOT NULL default 'N',
+  `Create_priv` enum('N','Y') NOT NULL default 'N',
+  `Drop_priv` enum('N','Y') NOT NULL default 'N',
+  `Grant_priv` enum('N','Y') NOT NULL default 'N',
+  `References_priv` enum('N','Y') NOT NULL default 'N',
+  `Index_priv` enum('N','Y') NOT NULL default 'N',
+  `Alter_priv` enum('N','Y') NOT NULL default 'N',
+  PRIMARY KEY  (`Host`,`Db`,`User`),
+  KEY `User` (`User`)
+) TYPE=MyISAM COMMENT='Database privileges''
+> SHOW INDEX FROM db FROM mysql
+  rows=4 fields=10
+  [Table] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [Non_unique] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [Key_name] table='' type=string len=64 flags='not_null' max=7 num=0 blob=0
+  [Seq_in_index] table='' type=int len=2 flags='not_null' max=1 num=1 blob=0
+  [Column_name] table='' type=string len=64 flags='not_null' max=4 num=0 blob=0
+  [Collation] table='' type=string len=1 flags='' max=1 num=0 blob=0
+  [Cardinality] table='' type=int len=11 flags='' max=1 num=1 blob=0
+  [Sub_part] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [Packed] table='' type=string len=10 flags='' max=0 num=0 blob=0
+  [Comment] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'db' | '0' | 'PRIMARY' | '1' | 'Host' | 'A' | NULL | NULL | NULL | ''
+  | 'db' | '0' | 'PRIMARY' | '2' | 'Db' | 'A' | NULL | NULL | NULL | ''
+  | 'db' | '0' | 'PRIMARY' | '3' | 'User' | 'A' | '2' | NULL | NULL | ''
+  | 'db' | '1' | 'User' | '1' | 'User' | 'A' | NULL | NULL | NULL | ''
+> SHOW COLUMNS FROM mysql.user
+  rows=17 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=15 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=15 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=0 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=0 num=0 blob=0
+  | 'Host' | 'char(60) binary' | '' | 'PRI' | '' | ''
+  | 'User' | 'char(16) binary' | '' | 'PRI' | '' | ''
+  | 'Password' | 'char(16) binary' | '' | '' | '' | ''
+  | 'Select_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'Insert_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'Update_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'Delete_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'Create_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'Drop_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'Reload_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'Shutdown_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'Process_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'File_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'Grant_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'References_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'Index_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''
+  | 'Alter_priv' | 'enum('N','Y')' | '' | '' | 'N' | ''

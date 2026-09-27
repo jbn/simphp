@@ -35,7 +35,7 @@ mysql_query("SELECT nosuchcol FROM guestbook"); echo mysql_errno(), ": ", mysql_
 mysql_query("SELEC * FROM guestbook"); echo mysql_errno(), ": ", mysql_error(), "\n";
 $r = mysql_query("SHOW TABLES"); while ($t = mysql_fetch_row($r)) echo "table: $t[0]\n";
 $r = mysql_query("DESCRIBE guestbook"); while ($t = mysql_fetch_assoc($r)) echo implode("|", $t), "\n";
-$r = mysql_query("SELECT DATE_FORMAT('2001-12-26 14:30:00', '%W %M %D %Y %h:%i %p'), CONCAT('a', 'b', 1), IF(1>2,'y','n'), LEFT('abcdef', 3), 7 DIV 2, PASSWORD('secret'), MD5('php'), UNIX_TIMESTAMP('2001-12-26 00:00:00') > 0");
+$r = mysql_query("SELECT DATE_FORMAT('2001-12-26 14:30:00', '%W %M %D %Y %h:%i %p'), CONCAT('a', 'b', 1), IF(1>2,'y','n'), LEFT('abcdef', 3), 7 / 2, PASSWORD('secret'), MD5('php'), UNIX_TIMESTAMP('2001-12-26 00:00:00') > 0");
 print_r(mysql_fetch_row($r));
 $r = mysql_list_dbs(); while ($d = mysql_fetch_object($r)) echo "db: ", $d->Database, "\n";
 $f = mysql_list_fields("test", "guestbook"); echo mysql_num_fields($f), " fields via list_fields; ", mysql_field_flags($f, 0), "\n";

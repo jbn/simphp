@@ -1,11 +1,11 @@
 <html><body>
 <h3>SHOW DATABASES</h3>
-<table border=1 cellpadding=3 cellspacing=0><tr bgcolor=#ccccff><th>Database<br><small>string(8)</small></th></tr>
+<table border=1 cellpadding=3 cellspacing=0><tr bgcolor=#ccccff><th>Database<br><small>string(64)</small></th></tr>
 <tr><td>mysql</td></tr>
 <tr><td>test</td></tr>
 </table>
 <h3>SHOW TABLES</h3>
-<table border=1 cellpadding=3 cellspacing=0><tr bgcolor=#ccccff><th>Tables_in_test<br><small>string(14)</small></th></tr>
+<table border=1 cellpadding=3 cellspacing=0><tr bgcolor=#ccccff><th>Tables_in_test<br><small>string(64)</small></th></tr>
 </table>
 <h3>DESCRIBE guestbook</h3>
 <p><b>Error 1146:</b> Table 'test.guestbook' doesn't exist</p><h3>SELECT COUNT(*), VERSION(), DATABASE() FROM guestbook</h3>

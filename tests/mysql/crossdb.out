@@ -1,0 +1,197 @@
+> CREATE DATABASE shop
+  ok affected=1 insert_id=0
+> CREATE TABLE items (id int NOT NULL auto_increment PRIMARY KEY, name varchar(20) NOT NULL, price decimal(6,2))
+  ok affected=0 insert_id=0
+> INSERT INTO items (name, price) VALUES ('apple', 0.5), ('pear', 0.75)
+  ok affected=2 insert_id=0
+> CREATE TABLE shop.items (id int NOT NULL auto_increment PRIMARY KEY, name varchar(20) NOT NULL, stock int)
+  ok affected=0 insert_id=0
+> INSERT INTO shop.items (name, stock) VALUES ('pear', 3), ('fig', 7), ('apple', 0)
+  ok affected=3 insert_id=0
+> SELECT id, name FROM items ORDER BY id
+  rows=2 fields=2
+  | '1' | 'apple'
+  | '2' | 'pear'
+> SELECT id, name FROM shop.items ORDER BY id
+  rows=3 fields=2
+  | '1' | 'pear'
+  | '2' | 'fig'
+  | '3' | 'apple'
+> SELECT items.name, shop.items.stock FROM items, shop.items WHERE items.name = shop.items.name ORDER BY items.name
+  ERR 1052: Column: 'items.name' in field list is ambiguous
+> SELECT test.items.name, shop.items.stock FROM test.items, shop.items WHERE test.items.name = shop.items.name ORDER BY 1
+  rows=2 fields=2
+  [name] table='items' type=string len=20 flags='not_null' max=5 num=0 blob=0
+  [stock] table='items' type=int len=11 flags='' max=1 num=1 blob=0
+  | 'apple' | '0'
+  | 'pear' | '3'
+> SELECT name FROM items, shop.items
+  ERR 1052: Column: 'name' in field list is ambiguous
+> SELECT t.name, s.stock FROM test.items t LEFT JOIN shop.items s ON s.name = t.name ORDER BY t.id
+  rows=2 fields=2
+  [name] table='t' type=string len=20 flags='not_null' max=5 num=0 blob=0
+  [stock] table='s' type=int len=11 flags='' max=1 num=1 blob=0
+  | 'apple' | '0'
+  | 'pear' | '3'
+> SELECT * FROM items, shop.items WHERE items.id = 1 AND shop.items.id = 1
+  ERR 1052: Column: 'items.id' in where clause is ambiguous
+> CREATE TABLE copy1 SELECT * FROM shop.items
+  ok affected=3 insert_id=0
+> CREATE TABLE copy2 (SELECT name, stock * 2 AS dbl FROM shop.items WHERE stock > 0)
+  ERR 1064: You have an error in your SQL syntax near 'SELECT name, stock * 2 AS dbl FROM shop.items WHERE stock > 0)' at line 1
+> CREATE TABLE copy3 (extra int NOT NULL default 5) SELECT name FROM items
+  ok affected=2 insert_id=0
+> CREATE TABLE copy4 (id int NOT NULL auto_increment PRIMARY KEY) SELECT name FROM items
+  ok affected=2 insert_id=1
+> CREATE TABLE shop.copy5 SELECT name, price FROM test.items
+  ok affected=2 insert_id=0
+> SELECT * FROM copy1 ORDER BY id
+  rows=3 fields=3
+  | '1' | 'pear' | '3'
+  | '2' | 'fig' | '7'
+  | '3' | 'apple' | '0'
+> SELECT * FROM copy2 ORDER BY name
+  ERR 1146: Table 'test.copy2' doesn't exist
+> SELECT * FROM copy3 ORDER BY name
+  rows=2 fields=2
+  | '5' | 'apple'
+  | '5' | 'pear'
+> SELECT * FROM copy4 ORDER BY id
+  rows=2 fields=2
+  | '1' | 'apple'
+  | '2' | 'pear'
+> SELECT * FROM shop.copy5 ORDER BY name
+  rows=2 fields=2
+  | 'apple' | '0.50'
+  | 'pear' | '0.75'
+> DESCRIBE copy1
+  rows=3 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=5 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=8 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=0 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=0 num=0 blob=0
+  | 'id' | 'int(11)' | '' | '' | '0' | ''
+  | 'name' | 'char(20)' | '' | '' | '' | ''
+  | 'stock' | 'int(11)' | 'YES' | '' | NULL | ''
+> DESCRIBE copy2
+  ERR 1146: Table 'test.copy2' doesn't exist
+> DESCRIBE copy3
+  rows=2 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=5 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=8 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=0 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=0 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=0 num=0 blob=0
+  | 'extra' | 'int(11)' | '' | '' | '5' | ''
+  | 'name' | 'char(20)' | '' | '' | '' | ''
+> DESCRIBE copy4
+  rows=2 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=4 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=8 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=0 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=3 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=0 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=14 num=0 blob=0
+  | 'id' | 'int(11)' | '' | 'PRI' | NULL | 'auto_increment'
+  | 'name' | 'char(20)' | '' | '' | '' | ''
+> DESCRIBE shop.copy5
+  rows=2 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=5 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=12 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=0 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=0 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=0 num=0 blob=0
+  | 'name' | 'char(20)' | '' | '' | '' | ''
+  | 'price' | 'decimal(6,2)' | 'YES' | '' | NULL | ''
+> RENAME TABLE copy1 TO shop.moved
+  ok affected=0 insert_id=0
+> SELECT COUNT(*) FROM shop.moved
+  rows=1 fields=1
+  [COUNT(*)] table='' type=int len=21 flags='not_null' max=1 num=1 blob=0
+  | '3'
+> SELECT COUNT(*) FROM copy1
+  ERR 1146: Table 'test.copy1' doesn't exist
+> RENAME TABLE shop.moved TO back, copy2 TO copy2b
+  ERR 1017: Can't find file: './test/copy2.frm' (errno: 2)
+> SHOW TABLES
+  rows=3 fields=1
+  [Tables_in_test] table='' type=string len=64 flags='not_null' max=5 num=0 blob=0
+  | 'copy3'
+  | 'copy4'
+  | 'items'
+> SHOW TABLES FROM shop
+  rows=3 fields=1
+  [Tables_in_shop] table='' type=string len=64 flags='not_null' max=5 num=0 blob=0
+  | 'copy5'
+  | 'items'
+  | 'moved'
+> RENAME TABLE nosuch TO x
+  ERR 1017: Can't find file: './test/nosuch.frm' (errno: 2)
+> RENAME TABLE copy3 TO copy4
+  ERR 1050: Table './test/copy4.frm' already exists
+> RENAME TABLE copy3 TO nosuchdb.x
+  ERR 7: Error on rename of './test/copy3.MYI' to './nosuchdb/x.MYI' (Errcode: 2)
+> ALTER TABLE copy3 RENAME shop.copy3
+  ok affected=2 insert_id=0
+> SHOW TABLES FROM shop
+  rows=4 fields=1
+  [Tables_in_shop] table='' type=string len=64 flags='not_null' max=5 num=0 blob=0
+  | 'copy3'
+  | 'copy5'
+  | 'items'
+  | 'moved'
+> INSERT INTO shop.items (name) SELECT name FROM test.items WHERE id = 1
+  ok affected=1 insert_id=4
+> SELECT name, stock FROM shop.items ORDER BY id
+  rows=4 fields=2
+  | 'pear' | '3'
+  | 'fig' | '7'
+  | 'apple' | '0'
+  | 'apple' | NULL
+> UPDATE shop.items SET stock = 9 WHERE name = 'apple'
+  ok affected=2 insert_id=0
+> DELETE FROM shop.items WHERE stock IS NULL
+  ok affected=0 insert_id=0
+> SELECT DATABASE()
+  rows=1 fields=1
+  [DATABASE()] table='' type=string len=34 flags='not_null' max=4 num=0 blob=0
+  | 'test'
+> USE shop
+  ok affected=0 insert_id=0
+> SELECT DATABASE()
+  rows=1 fields=1
+  [DATABASE()] table='' type=string len=34 flags='not_null' max=4 num=0 blob=0
+  | 'shop'
+> SELECT name FROM items ORDER BY id
+  rows=4 fields=1
+  | 'pear'
+  | 'fig'
+  | 'apple'
+  | 'apple'
+> SELECT name FROM test.items ORDER BY id
+  rows=2 fields=1
+  | 'apple'
+  | 'pear'
+> DROP TABLE test.back, items
+  ERR 1051: Unknown table 'back'
+> SHOW TABLES FROM test
+  rows=2 fields=1
+  [Tables_in_test] table='' type=string len=64 flags='not_null' max=5 num=0 blob=0
+  | 'copy4'
+  | 'items'
+> DROP DATABASE shop
+  ok affected=9 insert_id=0
+> SELECT DATABASE()
+  rows=1 fields=1
+  [DATABASE()] table='' type=string len=34 flags='not_null' max=4 num=0 blob=0
+  | 'shop'
+> SELECT 1
+  rows=1 fields=1
+  [1] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  | '1'
+> SELECT * FROM items
+  ERR 1146: Table 'shop.items' doesn't exist

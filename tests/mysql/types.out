@@ -1,0 +1,146 @@
+> CREATE TABLE n (ti tinyint, tu tinyint unsigned, si smallint, i int, iu int unsigned, bi bigint, m mediumint unsigned)
+  ok affected=0 insert_id=0
+> INSERT INTO n VALUES (127, 255, 32767, 2147483647, 4294967295, 9223372036854775807, 16777215)
+  ok affected=1 insert_id=0
+> INSERT INTO n VALUES (128, 256, 32768, 2147483648, 4294967296, 9223372036854775808, 16777216)
+  ok affected=1 insert_id=0
+> INSERT INTO n VALUES (-129, -1, -32769, -2147483649, -5, -9223372036854775809, -1)
+  ok affected=1 insert_id=0
+> INSERT INTO n VALUES ('12abc', 'x', '3.7', '-2.5', '1e3', ' 42 ', '')
+  ok affected=1 insert_id=0
+> INSERT INTO n VALUES (1.5, 2.5, -1.5, 0.49, 3.5, -2.5, 0.5)
+  ok affected=1 insert_id=0
+> SELECT * FROM n
+  rows=5 fields=7
+  | '127' | '255' | '32767' | '2147483647' | '4294967295' | '9223372036854775807' | '16777215'
+  | '127' | '255' | '32767' | '2147483647' | '4294967295' | '9223372036854775807' | '16777215'
+  | '-128' | '0' | '-32768' | '-2147483648' | '0' | '-9223372036854775808' | '0'
+  | '12' | '0' | '3' | '-2' | '1' | '42' | '0'
+  | '2' | '2' | '-2' | '0' | '4' | '-2' | '0'
+> CREATE TABLE s (c char(5), v varchar(5), cb char(5) binary, t tinytext, b tinyblob)
+  ok affected=0 insert_id=0
+> INSERT INTO s VALUES ('abcdefg', 'abcdefg', 'abcdefg', 'x', 'y')
+  ok affected=1 insert_id=0
+> INSERT INTO s VALUES ('ab  ', 'ab  ', 'ab  ', 'ab  ', 'ab  ')
+  ok affected=1 insert_id=0
+> INSERT INTO s VALUES (12345678, 3.14159, -1, 1e20, 0.1)
+  ok affected=1 insert_id=0
+> SELECT c, v, cb, t, b, LENGTH(c), LENGTH(v), LENGTH(t), CONCAT('[', c, ']'), CONCAT('[', v, ']') FROM s
+  rows=3 fields=10
+  | 'abcde' | 'abcde' | 'abcde' | 'x' | 'y' | '5' | '5' | '1' | '[abcde]' | '[abcde]'
+  | 'ab' | 'ab' | 'ab' | 'ab  ' | 'ab  ' | '2' | '2' | '4' | '[ab]' | '[ab]'
+  | '12345' | '3' | '-1' | '100000000000000000000.00' | '0.10' | '5' | '1' | '24' | '[12345]' | '[3]'
+> CREATE TABLE d (a int NOT NULL, b int, c varchar(10) NOT NULL, dd varchar(10), e date NOT NULL, f datetime, g decimal(6,2) NOT NULL, h enum('x','y') NOT NULL, i enum('p','q'), j set('m','n') NOT NULL, k float NOT NULL, l time NOT NULL, m year NOT NULL, ts timestamp)
+  ok affected=0 insert_id=0
+> DESCRIBE d
+  rows=14 fields=6
+  [Field] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [Type] table='' type=string len=40 flags='not_null' max=13 num=0 blob=0
+  [Null] table='' type=string len=1 flags='not_null' max=3 num=0 blob=0
+  [Key] table='' type=string len=3 flags='not_null' max=0 num=0 blob=0
+  [Default] table='' type=string len=64 flags='not_null' max=10 num=0 blob=0
+  [Extra] table='' type=string len=20 flags='not_null' max=0 num=0 blob=0
+  | 'a' | 'int(11)' | '' | '' | '0' | ''
+  | 'b' | 'int(11)' | 'YES' | '' | NULL | ''
+  | 'c' | 'varchar(10)' | '' | '' | '' | ''
+  | 'dd' | 'varchar(10)' | 'YES' | '' | NULL | ''
+  | 'e' | 'date' | '' | '' | '0000-00-00' | ''
+  | 'f' | 'datetime' | 'YES' | '' | NULL | ''
+  | 'g' | 'decimal(6,2)' | '' | '' | '0.00' | ''
+  | 'h' | 'enum('x','y')' | '' | '' | 'x' | ''
+  | 'i' | 'enum('p','q')' | 'YES' | '' | NULL | ''
+  | 'j' | 'set('m','n')' | '' | '' | '' | ''
+  | 'k' | 'float' | '' | '' | '0' | ''
+  | 'l' | 'time' | '' | '' | '00:00:00' | ''
+  | 'm' | 'year(4)' | '' | '' | '0000' | ''
+  | 'ts' | 'timestamp(14)' | 'YES' | '' | NULL | ''
+> INSERT INTO d (a) VALUES (1)
+  ok affected=1 insert_id=0
+> INSERT INTO d () VALUES ()
+  ok affected=1 insert_id=0
+> INSERT INTO d (a, c) VALUES (NULL, 'x')
+  ERR 1048: Column 'a' cannot be null
+> INSERT INTO d (a, b, c) VALUES (2, NULL, NULL)
+  ERR 1048: Column 'c' cannot be null
+> INSERT INTO d (a, c) VALUES (3, 'a'), (NULL, NULL), (4, 'b')
+  ok affected=3 insert_id=0
+> SELECT a, b, c, dd, e, f, g, h, i, j, k, l, m, ts IS NULL FROM d
+  rows=5 fields=14
+  | '1' | NULL | '' | NULL | '0000-00-00' | NULL | '0.00' | 'x' | NULL | '' | '0' | '00:00:00' | '0000' | '0'
+  | '0' | NULL | '' | NULL | '0000-00-00' | NULL | '0.00' | 'x' | NULL | '' | '0' | '00:00:00' | '0000' | '0'
+  | '3' | NULL | 'a' | NULL | '0000-00-00' | NULL | '0.00' | 'x' | NULL | '' | '0' | '00:00:00' | '0000' | '0'
+  | '0' | NULL | '' | NULL | '0000-00-00' | NULL | '0.00' | 'x' | NULL | '' | '0' | '00:00:00' | '0000' | '0'
+  | '4' | NULL | 'b' | NULL | '0000-00-00' | NULL | '0.00' | 'x' | NULL | '' | '0' | '00:00:00' | '0000' | '0'
+> CREATE TABLE es (e enum('a','b','Cc') NOT NULL, en enum('x','y'), s set('one','two','three'), sn set('A','B') NOT NULL)
+  ok affected=0 insert_id=0
+> INSERT INTO es VALUES ('b', 'y', 'two,one', 'b')
+  ok affected=1 insert_id=0
+> INSERT INTO es VALUES ('cc', 'z', 'three,four,one', 'a,b,a')
+  ok affected=1 insert_id=0
+> INSERT INTO es VALUES (2, 1, 5, 3)
+  ok affected=1 insert_id=0
+> INSERT INTO es VALUES (0, 0, 0, 0)
+  ok affected=1 insert_id=0
+> INSERT INTO es VALUES ('', '', '', '')
+  ok affected=1 insert_id=0
+> INSERT INTO es VALUES (7, 9, 99, 9)
+  ok affected=1 insert_id=0
+> SELECT e, e+0, en, en+0, s, s+0, sn, sn+0 FROM es
+  rows=6 fields=8
+  | 'b' | '2' | 'y' | '2' | 'one,two' | '3' | 'B' | '2'
+  | 'Cc' | '3' | '' | '0' | 'one,three' | '5' | 'A,B' | '3'
+  | 'b' | '2' | 'x' | '1' | 'one,three' | '5' | 'A,B' | '3'
+  | '' | '0' | '' | '0' | '' | '0' | '' | '0'
+  | '' | '0' | '' | '0' | '' | '0' | '' | '0'
+  | '' | '0' | '' | '0' | 'one,two' | '3' | 'A' | '1'
+> SELECT e FROM es WHERE e = 'B'
+  rows=2 fields=1
+  | 'b'
+  | 'b'
+> SELECT s FROM es WHERE FIND_IN_SET('one', s) ORDER BY s
+  rows=4 fields=1
+  | 'one,two'
+  | 'one,two'
+  | 'one,three'
+  | 'one,three'
+> SELECT e FROM es ORDER BY e
+  rows=6 fields=1
+  | ''
+  | ''
+  | ''
+  | 'b'
+  | 'b'
+  | 'Cc'
+> CREATE TABLE f (d1 decimal(5,2), d2 decimal(4,0), d3 decimal(6,3) unsigned, f1 float, f2 float(6,2), db double, db2 double(8,4), r real)
+  ok affected=0 insert_id=0
+> INSERT INTO f VALUES (123.456, 12345, -1.5, 1.23456789, 1234.5678, 1.23456789012345678, 3.14159265, 1e30)
+  ok affected=1 insert_id=0
+> INSERT INTO f VALUES (999.999, -99999, 12345.678, 0.1, 0.005, 1e-10, -0.00005, 100)
+  ok affected=1 insert_id=0
+> INSERT INTO f VALUES ('1.005', '2.5', '3.0005', '1e5', '-0', '123456789012', 1/3, 2/3)
+  ok affected=1 insert_id=0
+> INSERT INTO f VALUES (-999.99, 0, 0, 3.4e38, 1e6, -1.5e300, 99999.99999, 0.1+0.2)
+  ok affected=1 insert_id=0
+> SELECT * FROM f
+  rows=4 fields=8
+  | '123.46' | '12345' | '000.000' | '1.23457' | '1234.57' | '1.23456789012346' | '3.1416' | '1e+30'
+  | '1000.00' | '-9999' | '999.999' | '0.1' | '0.01' | '1e-10' | '-0.0001' | '100'
+  | '1.00' | '2' | '3.000' | '100000' | '0.00' | '123456789012' | '0.3333' | '0.666666666666667'
+  | '-999.99' | '0' | '0.000' | '3.4e+38' | '1000000.00' | '-1.5e+300' | '100000.0000' | '0.3'
+> SELECT d1+0, d1*1.0, f1+0, f1*2, db/3, r+1, SUM(d1), AVG(d1), SUM(f1), MAX(db) FROM f GROUP BY d2 ORDER BY d2
+  rows=4 fields=10
+  | '1000.00' | '1000.00' | '0.100000001490116' | '0.200000002980232' | '3.33333333333333e-11' | '101' | '1000.00' | '1000.000000' | '0.100000001490116' | '1e-10'
+  | '-999.99' | '-999.99' | '3.39999995214436e+38' | '6.79999990428873e+38' | '-5e+299' | '1.3' | '-999.99' | '-999.990000' | '3.39999995214436e+38' | '-1.5e+300'
+  | '1.00' | '1.00' | '100000' | '200000' | '41152263004' | '1.66666666666667' | '1.00' | '1.000000' | '100000' | '123456789012'
+  | '123.46' | '123.46' | '1.23456788063049' | '2.46913576126099' | '0.411522630041152' | '1e+30' | '123.46' | '123.460000' | '1.23456788063049' | '1.23456789012346'
+> SELECT 1/3, 2/3, 10/5, 1e10, 1.0, 0.1+0.2, 3.14159*2, 1e-5, 123456789*1000, 2147483647+1, -2147483648-1, 18446744073709551615, 1.5e300*1e10
+  rows=1 fields=13
+  | '0.33' | '0.67' | '2.00' | '10000000000' | '1.0' | '0.3' | '6.28318' | '1e-05' | '123456789000' | '2147483648' | '-2147483649' | '18446744073709551616' | 'inf'
+> SELECT ROUND(2.5), ROUND(3.5), ROUND(-2.5), ROUND(1.2345,2), ROUND(1.2355,3), TRUNCATE(1.999,1), FLOOR(-1.5), CEILING(-1.5), -5 % 3, MOD(5.5,2), MOD(-7,3), 7.5 % 2
+  rows=1 fields=12
+  | '2' | '4' | '-2' | '1.23' | '1.236' | '1.9' | '-2' | '-1' | '-2' | '0' | '-1' | '0'
+> SELECT 5 MOD 3
+  ERR 1064: You have an error in your SQL syntax near '3' at line 1
+> SELECT FORMAT(1234567.891, 2), FORMAT(0.5, 0), FORMAT(-1234.5, 1), FORMAT(1234, 0)
+  rows=1 fields=4
+  | '1,234,567.89' | '0' | '-1,234.5' | '1,234'

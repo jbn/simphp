@@ -21,12 +21,12 @@ SELECT i.name FROM shop.items i ORDER BY i.name DESC
 UPDATE shop.items SET name = 'Apple' WHERE id = 1
   => ok, affected 1, insert id 0
 DESCRIBE shop.items
-  => Field string(5), Type string(11), Null string(4), Key string(3), Default string(7), Extra string(14)
+  => Field string(64), Type string(40), Null string(1), Key string(3), Default string(64), Extra string(20)
      id | int(11) |  | PRI | NULL | auto_increment
      name | varchar(20) | YES |  | NULL | 
      added | date | YES |  | NULL | 
 SHOW COLUMNS FROM items FROM shop
-  => Field string(5), Type string(11), Null string(4), Key string(3), Default string(7), Extra string(14)
+  => Field string(64), Type string(40), Null string(1), Key string(3), Default string(64), Extra string(20)
      id | int(11) |  | PRI | NULL | auto_increment
      name | varchar(20) | YES |  | NULL | 
      added | date | YES |  | NULL | 
@@ -37,7 +37,7 @@ SELECT * FROM nosuch.items
 SELECT * FROM shop.nosuch
   => ERROR 1146: Table 'shop.nosuch' doesn't exist
 CREATE TABLE nosuch.t (a INT)
-  => ERROR 1049: Unknown database 'nosuch'
+  => ERROR 1: Can't create/write to file './nosuch/t.frm' (Errcode: 2)
 -- test selected, reaching into shop
 CREATE TABLE stock (item INT, qty INT)
   => ok, affected 0, insert id 0
@@ -52,7 +52,7 @@ SELECT items.name, stock.qty FROM shop.items LEFT JOIN stock ON stock.item = ite
      Apple | 10
      pear | 0
 SELECT DATABASE(), COUNT(*) FROM shop.items
-  => DATABASE() string(4), COUNT(*) int(21)
+  => DATABASE() string(34), COUNT(*) int(21)
      test | 2
 INSERT INTO shop.items (name) SELECT 'plum' FROM stock WHERE item = 3
   => ok, affected 1, insert id 3
@@ -63,7 +63,7 @@ SELECT * FROM shop.low
      2 | 0
      3 | 5
 SELECT nosuch.stock.qty FROM stock
-  => ERROR 1109: Unknown table 'stock' in field list
+  => ERROR 1109: Unknown table 'nosuch.stock' in field list
 DELETE FROM shop.items WHERE id = 2
   => ok, affected 1, insert id 0
 SELECT id, name FROM shop.items
@@ -77,7 +77,7 @@ DROP TABLE shop.low
 DROP TABLE IF EXISTS shop.low, nosuch.t
   => ok, affected 0, insert id 0
 SHOW TABLES
-  => Tables_in_test string(14)
+  => Tables_in_test string(64)
 SHOW TABLES FROM shop
-  => Tables_in_shop string(14)
+  => Tables_in_shop string(64)
      items

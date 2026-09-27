@@ -1,0 +1,169 @@
+> CREATE TABLE e (id int NOT NULL PRIMARY KEY, u varchar(10), v int NOT NULL, UNIQUE KEY u (u), UNIQUE (v, u))
+  ok affected=0 insert_id=0
+> INSERT INTO e VALUES (1, 'a', 1)
+  ok affected=1 insert_id=0
+> INSERT INTO e VALUES (1, 'b', 2)
+  ERR 1062: Duplicate entry '1' for key 1
+> INSERT INTO e VALUES (2, 'a', 2)
+  ERR 1062: Duplicate entry 'a' for key 3
+> INSERT INTO e (id, u, v) VALUES (3, 'c', 3), (4, 'c', 4)
+  ERR 1062: Duplicate entry 'c' for key 3
+> UPDATE e SET id = 1 WHERE id = 3
+  ERR 1062: Duplicate entry '1' for key 1
+> SELECT nosuch FROM e
+  ERR 1054: Unknown column 'nosuch' in 'field list'
+> SELECT e.nosuch FROM e
+  ERR 1054: Unknown column 'e.nosuch' in 'field list'
+> SELECT x.id FROM e
+  ERR 1109: Unknown table 'x' in field list
+> SELECT id FROM e WHERE nosuch = 1
+  ERR 1054: Unknown column 'nosuch' in 'where clause'
+> SELECT id FROM e ORDER BY nosuch
+  ERR 1054: Unknown column 'nosuch' in 'order clause'
+> SELECT id FROM e GROUP BY nosuch
+  ERR 1054: Unknown column 'nosuch' in 'group statement'
+> SELECT id FROM e, e
+  ERR 1066: Not unique table/alias: 'e'
+> SELECT id FROM e a, e a
+  ERR 1066: Not unique table/alias: 'a'
+> SELECT id FROM e a, e b
+  ERR 1052: Column: 'id' in field list is ambiguous
+> SELECT * FROM nosuch
+  ERR 1146: Table 'test.nosuch' doesn't exist
+> SELECT * FROM test.nosuch
+  ERR 1146: Table 'test.nosuch' doesn't exist
+> SELECT * FROM nosuchdb.e
+  ERR 1146: Table 'nosuchdb.e' doesn't exist
+> INSERT INTO e (nosuch) VALUES (1)
+  ERR 1054: Unknown column 'nosuch' in 'field list'
+> INSERT INTO e VALUES (5)
+  ERR 1136: Column count doesn't match value count at row 1
+> INSERT INTO e (id, u) VALUES (6, 'x', 3)
+  ERR 1136: Column count doesn't match value count at row 1
+> INSERT INTO e (id, v) VALUES (NULL, 1)
+  ERR 1048: Column 'id' cannot be null
+> INSERT INTO e (id, v) VALUES (7, NULL)
+  ERR 1048: Column 'v' cannot be null
+> UPDATE e SET nosuch = 1
+  ERR 1054: Unknown column 'nosuch' in 'field list'
+> UPDATE e SET v = NULL WHERE id = 1
+  ok affected=1 insert_id=0
+> DELETE FROM nosuch
+  ERR 1146: Table 'test.nosuch' doesn't exist
+> DELETE FROM e WHERE nosuch = 1
+  ERR 1054: Unknown column 'nosuch' in 'where clause'
+> CREATE TABLE e (x int)
+  ERR 1050: Table 'e' already exists
+> CREATE TABLE f (x int, x int)
+  ERR 1060: Duplicate column name 'x'
+> CREATE TABLE f (id int auto_increment)
+  ERR 1075: Incorrect table definition; There can only be one auto column and it must be defined as a key
+> CREATE TABLE f (x varchar(300))
+  ERR 1074: Too big column length for column 'x' (max = 255). Use BLOB instead
+> CREATE TABLE f (x char(256))
+  ERR 1074: Too big column length for column 'x' (max = 255). Use BLOB instead
+> CREATE TABLE f (x int, KEY (y))
+  ERR 1072: Key column 'y' doesn't exist in table
+> CREATE TABLE f (x text, KEY (x))
+  ERR 1170: BLOB column 'x' used in key specification without a key length
+> CREATE TABLE f (x nosuchtype)
+  ERR 1064: You have an error in your SQL syntax near 'nosuchtype)' at line 1
+> CREATE TABLE f ()
+  ERR 1064: You have an error in your SQL syntax near ')' at line 1
+> DROP TABLE nosuch
+  ERR 1051: Unknown table 'nosuch'
+> DROP TABLE e, nosuch1, nosuch2
+  ERR 1051: Unknown table 'nosuch1,nosuch2'
+> DROP TABLE IF EXISTS nosuch
+  ok affected=0 insert_id=0
+> SHOW TABLES
+  rows=0 fields=1
+  [Tables_in_test] table='' type=string len=64 flags='not_null' max=0 num=0 blob=0
+> CREATE TABLE e (id int NOT NULL PRIMARY KEY, u varchar(10), v int NOT NULL, UNIQUE KEY u (u))
+  ok affected=0 insert_id=0
+> INSERT INTO e VALUES (1, 'a', 1), (2, 'b', 2)
+  ok affected=2 insert_id=0
+> ALTER TABLE nosuch ADD x int
+  ERR 1146: Table 'test.nosuch' doesn't exist
+> ALTER TABLE e ADD id int
+  ERR 1060: Duplicate column name 'id'
+> ALTER TABLE e DROP nosuch
+  ERR 1091: Can't DROP 'nosuch'. Check that column/key exists
+> CREATE DATABASE test
+  ERR 1007: Can't create database 'test'. Database exists
+> DROP DATABASE nosuchdb
+  ERR 1008: Can't drop database 'nosuchdb'. Database doesn't exist
+> USE nosuchdb
+  ERR 1049: Unknown database 'nosuchdb'
+> SELEC 1
+  ERR 1064: You have an error in your SQL syntax near 'SELEC 1' at line 1
+> SELECT 1 FROM
+  ERR 1064: You have an error in your SQL syntax near '' at line 1
+> SELECT * FROM e WHERE
+  ERR 1064: You have an error in your SQL syntax near '' at line 1
+> SELECT * FROM e WHERE id = 'a
+  ERR 1064: You have an error in your SQL syntax near ''a' at line 1
+> SELECT * FROM e WHERE (id = 1
+  ERR 1064: You have an error in your SQL syntax near '' at line 1
+> SELECT * FROM e LIMIT -1
+  rows=2 fields=3
+  [id] table='e' type=int len=11 flags='not_null primary_key' max=1 num=1 blob=0
+  [u] table='e' type=string len=10 flags='multiple_key' max=1 num=0 blob=0
+  [v] table='e' type=int len=11 flags='not_null' max=1 num=1 blob=0
+  | '1' | 'a' | '1'
+  | '2' | 'b' | '2'
+> SELECT * FROM e ORDER BY
+  ERR 1064: You have an error in your SQL syntax near '' at line 1
+> INSERT INTO e VALUES
+  ERR 1064: You have an error in your SQL syntax near '' at line 1
+> UPDATE e SET
+  ERR 1064: You have an error in your SQL syntax near '' at line 1
+> SELECT * FROM e; SELECT 1
+  ERR 1064: You have an error in your SQL syntax near '; SELECT 1' at line 1
+> SELECT nosuchfunc(1)
+  ERR 1064: You have an error in your SQL syntax near '(1)' at line 1
+> SELECT COUNT(*) FROM e WHERE id = 1 GROUP
+  ERR 1064: You have an error in your SQL syntax near '' at line 1
+> SELECT * FROM e WHERE id = 1 AND AND u = 'a'
+  ERR 1064: You have an error in your SQL syntax near 'AND u = 'a'' at line 1
+> SELECT `id FROM e
+  ERR 1054: Unknown column 'id FROM e' in 'field list'
+> 
+  ERR 1065: Query was empty
+>    
+  ERR 1065: Query was empty
+> SELECT 1 +
+  ERR 1064: You have an error in your SQL syntax near '' at line 1
+> SELECT * FROM `e` WHERE `nosuch` = 1
+  ERR 1054: Unknown column 'nosuch' in 'where clause'
+> SELECT MAX(id), id FROM e GROUP BY v HAVING nosuch > 1
+  ERR 1054: Unknown column 'nosuch' in 'having clause'
+> SELECT SUM(id) FROM e WHERE SUM(id) > 1
+  ERR 1111: Invalid use of group function
+> SELECT u FROM e WHERE u = 'a' UNION SELECT 1
+  ERR 1064: You have an error in your SQL syntax near 'UNION SELECT 1' at line 1
+> SELECT * FROM e WHERE id IN (SELECT id FROM e)
+  ERR 1064: You have an error in your SQL syntax near 'SELECT id FROM e)' at line 1
+> INSERT INTO e SELECT * FROM e
+  ERR 1066: Not unique table/alias: 'e'
+> LOCK TABLES e READ
+  ok affected=0 insert_id=0
+> INSERT INTO e VALUES (100, 'z', 100)
+  ERR 1099: Table 'e' was locked with a READ lock and can't be updated
+> SELECT COUNT(*) FROM b
+  ERR 1100: Table 'b' was not locked with LOCK TABLES
+> UNLOCK TABLES
+  ok affected=0 insert_id=0
+> SELECT 'text' AS 'quoted alias', 1 AS `back`, 2 "dq"
+  rows=1 fields=3
+  [quoted alias] table='' type=string len=4 flags='not_null' max=4 num=0 blob=0
+  [back] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  [dq] table='' type=int len=1 flags='not_null' max=1 num=1 blob=0
+  | 'text' | '1' | '2'
+errno after success: 0 ''
+bool(false)
+<br>
+<b>Warning</b>:  Supplied argument is not a valid MySQL result resource in <b>/var/www/errors.php</b> on line <b>102</b><br>
+
+> SELECT * FROM e
+  ERR 1146: Table 'mysql.e' doesn't exist
