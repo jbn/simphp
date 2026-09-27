@@ -1,0 +1,532 @@
+> CREATE TABLE ev (id int NOT NULL auto_increment PRIMARY KEY, day int NOT NULL, room char(4), KEY day (day), KEY room (room))
+  ok affected=0 insert_id=0
+> CREATE TABLE per (pid int NOT NULL auto_increment PRIMARY KEY, name char(8), start int, stop int, KEY start (start))
+  ok affected=0 insert_id=0
+> EXPLAIN SELECT per.name, ev.id, ev.day FROM per, ev WHERE ev.day > per.stop AND per.pid < 3
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=3 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=7 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=7 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=44 num=0 blob=0
+  | 'per' | 'range' | 'PRIMARY' | 'PRIMARY' | '4' | NULL | '3' | 'where used'
+  | 'ev' | 'ALL' | 'day' | NULL | NULL | NULL | '60' | 'range checked for each record (index map: 2)'
+> SELECT per.name, ev.id, ev.day FROM per, ev WHERE ev.day > per.stop AND per.pid < 3
+  rows=76 fields=3
+  | 'p1' | '2' | '13'
+  | 'p1' | '3' | '19'
+  | 'p1' | '4' | '25'
+  | 'p1' | '5' | '31'
+  | 'p1' | '7' | '12'
+  | 'p1' | '8' | '18'
+  | 'p1' | '9' | '24'
+  | 'p1' | '10' | '30'
+  | 'p1' | '12' | '11'
+  | 'p1' | '13' | '17'
+  | 'p1' | '14' | '23'
+  | 'p1' | '15' | '29'
+  | 'p1' | '17' | '10'
+  | 'p1' | '18' | '16'
+  | 'p1' | '19' | '22'
+  | 'p1' | '20' | '28'
+  | 'p1' | '23' | '15'
+  | 'p1' | '24' | '21'
+  | 'p1' | '25' | '27'
+  | 'p1' | '28' | '14'
+  | 'p1' | '29' | '20'
+  | 'p1' | '30' | '26'
+  | 'p1' | '33' | '13'
+  | 'p1' | '34' | '19'
+  | 'p1' | '35' | '25'
+  | 'p1' | '36' | '31'
+  | 'p1' | '38' | '12'
+  | 'p1' | '39' | '18'
+  | 'p1' | '40' | '24'
+  | 'p1' | '41' | '30'
+  | 'p1' | '43' | '11'
+  | 'p1' | '44' | '17'
+  | 'p1' | '45' | '23'
+  | 'p1' | '46' | '29'
+  | 'p1' | '48' | '10'
+  | 'p1' | '49' | '16'
+  | 'p1' | '50' | '22'
+  | 'p1' | '51' | '28'
+  | 'p1' | '54' | '15'
+  | 'p1' | '55' | '21'
+  | 'p1' | '56' | '27'
+  | 'p1' | '59' | '14'
+  | 'p1' | '60' | '20'
+  | 'p2' | '3' | '19'
+  | 'p2' | '4' | '25'
+  | 'p2' | '5' | '31'
+  | 'p2' | '8' | '18'
+  | 'p2' | '9' | '24'
+  | 'p2' | '10' | '30'
+  | 'p2' | '13' | '17'
+  | 'p2' | '14' | '23'
+  | 'p2' | '15' | '29'
+  | 'p2' | '18' | '16'
+  | 'p2' | '19' | '22'
+  | 'p2' | '20' | '28'
+  | 'p2' | '23' | '15'
+  | 'p2' | '24' | '21'
+  | 'p2' | '25' | '27'
+  | 'p2' | '29' | '20'
+  | 'p2' | '30' | '26'
+  | 'p2' | '34' | '19'
+  | 'p2' | '35' | '25'
+  | 'p2' | '36' | '31'
+  | 'p2' | '39' | '18'
+  | 'p2' | '40' | '24'
+  | 'p2' | '41' | '30'
+  | 'p2' | '44' | '17'
+  | 'p2' | '45' | '23'
+  | 'p2' | '46' | '29'
+  | 'p2' | '49' | '16'
+  | 'p2' | '50' | '22'
+  | 'p2' | '51' | '28'
+  | 'p2' | '54' | '15'
+  | 'p2' | '55' | '21'
+  | 'p2' | '56' | '27'
+  | 'p2' | '60' | '20'
+> EXPLAIN SELECT per.name, ev.id FROM per, ev WHERE ev.day BETWEEN per.start AND per.stop
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=3 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'per' | 'ALL' | NULL | NULL | NULL | NULL | '8' | ''
+  | 'ev' | 'ALL' | 'day' | NULL | NULL | NULL | '60' | 'where used'
+> SELECT per.name, ev.id FROM per, ev WHERE ev.day BETWEEN per.start AND per.stop
+  rows=63 fields=2
+  | 'p1' | '1'
+  | 'p7' | '1'
+  | 'p2' | '2'
+  | 'p8' | '2'
+  | 'p3' | '3'
+  | 'p1' | '6'
+  | 'p2' | '7'
+  | 'p8' | '7'
+  | 'p3' | '8'
+  | 'p4' | '9'
+  | 'p6' | '11'
+  | 'p2' | '12'
+  | 'p3' | '13'
+  | 'p4' | '14'
+  | 'p5' | '15'
+  | 'p6' | '16'
+  | 'p7' | '17'
+  | 'p3' | '18'
+  | 'p4' | '19'
+  | 'p5' | '20'
+  | 'p6' | '21'
+  | 'p1' | '22'
+  | 'p7' | '22'
+  | 'p8' | '23'
+  | 'p4' | '24'
+  | 'p5' | '25'
+  | 'p6' | '26'
+  | 'p1' | '27'
+  | 'p7' | '27'
+  | 'p2' | '28'
+  | 'p8' | '28'
+  | 'p5' | '30'
+  | 'p1' | '32'
+  | 'p7' | '32'
+  | 'p2' | '33'
+  | 'p8' | '33'
+  | 'p3' | '34'
+  | 'p1' | '37'
+  | 'p2' | '38'
+  | 'p8' | '38'
+  | 'p3' | '39'
+  | 'p4' | '40'
+  | 'p6' | '42'
+  | 'p2' | '43'
+  | 'p3' | '44'
+  | 'p4' | '45'
+  | 'p5' | '46'
+  | 'p6' | '47'
+  | 'p7' | '48'
+  | 'p3' | '49'
+  | 'p4' | '50'
+  | 'p5' | '51'
+  | 'p6' | '52'
+  | 'p1' | '53'
+  | 'p7' | '53'
+  | 'p8' | '54'
+  | 'p4' | '55'
+  | 'p5' | '56'
+  | 'p6' | '57'
+  | 'p1' | '58'
+  | 'p7' | '58'
+  | 'p2' | '59'
+  | 'p8' | '59'
+> EXPLAIN SELECT per.name, ev.id FROM per, ev WHERE ev.day = per.start
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=3 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=5 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=9 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=0 num=0 blob=0
+  | 'per' | 'ALL' | 'start' | NULL | NULL | NULL | '8' | ''
+  | 'ev' | 'ref' | 'day' | 'day' | '4' | 'per.start' | '12' | ''
+> SELECT per.name, ev.id FROM per, ev WHERE ev.day = per.start
+  rows=15 fields=2
+  | 'p1' | '6'
+  | 'p1' | '37'
+  | 'p2' | '12'
+  | 'p2' | '43'
+  | 'p3' | '18'
+  | 'p3' | '49'
+  | 'p4' | '24'
+  | 'p4' | '55'
+  | 'p5' | '30'
+  | 'p6' | '26'
+  | 'p6' | '57'
+  | 'p7' | '1'
+  | 'p7' | '32'
+  | 'p8' | '7'
+  | 'p8' | '38'
+> EXPLAIN SELECT per.name, ev.id FROM per, ev WHERE ev.day < per.start AND ev.room = 'red'
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=3 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=8 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=4 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=44 num=0 blob=0
+  | 'ev' | 'ref' | 'day,room' | 'room' | '5' | 'const' | '15' | 'where used'
+  | 'per' | 'ALL' | 'start' | NULL | NULL | NULL | '8' | 'range checked for each record (index map: 2)'
+> SELECT per.name, ev.id FROM per, ev WHERE ev.day < per.start AND ev.room = 'red'
+  rows=40 fields=2
+  | 'p5' | '4'
+  | 'p4' | '8'
+  | 'p5' | '8'
+  | 'p3' | '12'
+  | 'p4' | '12'
+  | 'p5' | '12'
+  | 'p8' | '12'
+  | 'p1' | '16'
+  | 'p2' | '16'
+  | 'p3' | '16'
+  | 'p4' | '16'
+  | 'p5' | '16'
+  | 'p7' | '16'
+  | 'p8' | '16'
+  | 'p5' | '24'
+  | 'p3' | '28'
+  | 'p4' | '28'
+  | 'p5' | '28'
+  | 'p2' | '32'
+  | 'p3' | '32'
+  | 'p4' | '32'
+  | 'p5' | '32'
+  | 'p8' | '32'
+  | 'p5' | '40'
+  | 'p4' | '44'
+  | 'p5' | '44'
+  | 'p2' | '48'
+  | 'p3' | '48'
+  | 'p4' | '48'
+  | 'p5' | '48'
+  | 'p8' | '48'
+  | 'p1' | '52'
+  | 'p2' | '52'
+  | 'p3' | '52'
+  | 'p4' | '52'
+  | 'p5' | '52'
+  | 'p7' | '52'
+  | 'p8' | '52'
+  | 'p4' | '60'
+  | 'p5' | '60'
+> EXPLAIN SELECT per.name, COUNT(ev.id) FROM per LEFT JOIN ev ON ev.day >= per.start AND ev.day <= per.stop GROUP BY per.pid
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=3 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=15 num=0 blob=0
+  | 'per' | 'ALL' | NULL | NULL | NULL | NULL | '8' | 'Using temporary'
+  | 'ev' | 'ALL' | 'day' | NULL | NULL | NULL | '60' | ''
+> SELECT per.name, COUNT(ev.id) FROM per LEFT JOIN ev ON ev.day >= per.start AND ev.day <= per.stop GROUP BY per.pid
+  rows=8 fields=2
+  | 'p1' | '8'
+  | 'p2' | '8'
+  | 'p3' | '8'
+  | 'p4' | '8'
+  | 'p5' | '7'
+  | 'p6' | '8'
+  | 'p7' | '8'
+  | 'p8' | '8'
+> EXPLAIN SELECT ev.id, per.name FROM ev, per WHERE per.start = ev.day AND ev.room = 'blue'
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=3 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=8 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=4 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'ev' | 'ref' | 'day,room' | 'room' | '5' | 'const' | '15' | 'where used'
+  | 'per' | 'ALL' | 'start' | NULL | NULL | NULL | '8' | 'where used'
+> SELECT ev.id, per.name FROM ev, per WHERE per.start = ev.day AND ev.room = 'blue'
+  rows=4 fields=2
+  | '37' | 'p1'
+  | '49' | 'p3'
+  | '57' | 'p6'
+  | '1' | 'p7'
+> EXPLAIN SELECT ev.id FROM ev WHERE day > 25 LIMIT 3
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'ev' | 'range' | 'day' | 'day' | '4' | NULL | '12' | 'where used'
+> SELECT ev.id FROM ev WHERE day > 25 LIMIT 3
+  rows=3 fields=1
+  | '30'
+  | '25'
+  | '56'
+> EXPLAIN SELECT ev.id FROM ev WHERE day > 5 LIMIT 3
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'ev' | 'range' | 'day' | 'day' | '4' | NULL | '60' | 'where used'
+> SELECT ev.id FROM ev WHERE day > 5 LIMIT 3
+  rows=3 fields=1
+  | '6'
+  | '37'
+  | '1'
+> EXPLAIN SELECT ev.id FROM ev WHERE day > 5
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'ev' | 'ALL' | 'day' | NULL | NULL | NULL | '60' | 'where used'
+> SELECT ev.id FROM ev WHERE day > 5
+  rows=51 fields=1
+  | '1'
+  | '2'
+  | '3'
+  | '4'
+  | '5'
+  | '6'
+  | '7'
+  | '8'
+  | '9'
+  | '10'
+  | '12'
+  | '13'
+  | '14'
+  | '15'
+  | '17'
+  | '18'
+  | '19'
+  | '20'
+  | '22'
+  | '23'
+  | '24'
+  | '25'
+  | '27'
+  | '28'
+  | '29'
+  | '30'
+  | '32'
+  | '33'
+  | '34'
+  | '35'
+  | '36'
+  | '37'
+  | '38'
+  | '39'
+  | '40'
+  | '41'
+  | '43'
+  | '44'
+  | '45'
+  | '46'
+  | '48'
+  | '49'
+  | '50'
+  | '51'
+  | '53'
+  | '54'
+  | '55'
+  | '56'
+  | '58'
+  | '59'
+  | '60'
+> EXPLAIN SELECT ev.id FROM ev WHERE room > 'o'
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=4 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'ev' | 'ALL' | 'room' | NULL | NULL | NULL | '60' | 'where used'
+> SELECT ev.id FROM ev WHERE room > 'o'
+  rows=30 fields=1
+  | '3'
+  | '4'
+  | '7'
+  | '8'
+  | '11'
+  | '12'
+  | '15'
+  | '16'
+  | '19'
+  | '20'
+  | '23'
+  | '24'
+  | '27'
+  | '28'
+  | '31'
+  | '32'
+  | '35'
+  | '36'
+  | '39'
+  | '40'
+  | '43'
+  | '44'
+  | '47'
+  | '48'
+  | '51'
+  | '52'
+  | '55'
+  | '56'
+  | '59'
+  | '60'
+> EXPLAIN SELECT ev.id FROM ev WHERE room IN ('red', 'blue') AND day < 10
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=8 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'ev' | 'ALL' | 'day,room' | NULL | NULL | NULL | '60' | 'where used'
+> SELECT ev.id FROM ev WHERE room IN ('red', 'blue') AND day < 10
+  rows=8 fields=1
+  | '1'
+  | '16'
+  | '21'
+  | '32'
+  | '37'
+  | '52'
+  | '53'
+  | '57'
+> EXPLAIN SELECT ev.id FROM ev WHERE (day = 3 OR day = 7) AND room = 'red'
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=8 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=1 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'ev' | 'range' | 'day,room' | 'day' | '4' | NULL | '4' | 'where used'
+> SELECT ev.id FROM ev WHERE (day = 3 OR day = 7) AND room = 'red'
+  rows=2 fields=1
+  | '52'
+  | '32'
+> EXPLAIN SELECT ev.id FROM ev WHERE day = 3 OR room = 'red'
+  rows=1 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=2 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=3 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=8 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=0 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=0 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=0 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=10 num=0 blob=0
+  | 'ev' | 'ALL' | 'day,room' | NULL | NULL | NULL | '60' | 'where used'
+> SELECT ev.id FROM ev WHERE day = 3 OR room = 'red'
+  rows=16 fields=1
+  | '4'
+  | '8'
+  | '12'
+  | '16'
+  | '20'
+  | '21'
+  | '24'
+  | '28'
+  | '32'
+  | '36'
+  | '40'
+  | '44'
+  | '48'
+  | '52'
+  | '56'
+  | '60'
+> EXPLAIN SELECT a.id, b.id FROM ev a, ev b WHERE a.id = b.day AND a.id < 4
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=7 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=7 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=4 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=23 num=0 blob=0
+  | 'a' | 'range' | 'PRIMARY' | 'PRIMARY' | '4' | NULL | '4' | 'where used; Using index'
+  | 'b' | 'ref' | 'day' | 'day' | '4' | 'a.id' | '12' | ''
+> SELECT a.id, b.id FROM ev a, ev b WHERE a.id = b.day AND a.id < 4
+  rows=5 fields=2
+  | '1' | '31'
+  | '2' | '26'
+  | '2' | '57'
+  | '3' | '21'
+  | '3' | '52'
+> EXPLAIN SELECT COUNT(*) FROM ev a, ev b WHERE a.day = b.day
+  rows=2 fields=8
+  [table] table='' type=string len=64 flags='not_null' max=1 num=0 blob=0
+  [type] table='' type=string len=10 flags='not_null' max=5 num=0 blob=0
+  [possible_keys] table='' type=string len=2048 flags='' max=3 num=0 blob=0
+  [key] table='' type=string len=64 flags='' max=3 num=0 blob=0
+  [key_len] table='' type=int len=3 flags='' max=1 num=1 blob=0
+  [ref] table='' type=string len=1024 flags='' max=5 num=0 blob=0
+  [rows] table='' type=real len=10 flags='not_null' max=2 num=1 blob=0
+  [Extra] table='' type=string len=255 flags='not_null' max=11 num=0 blob=0
+  | 'a' | 'index' | 'day' | 'day' | '4' | NULL | '60' | 'Using index'
+  | 'b' | 'ref' | 'day' | 'day' | '4' | 'a.day' | '12' | 'Using index'
+> SELECT COUNT(*) FROM ev a, ev b WHERE a.day = b.day
+  rows=1 fields=1
+  | '118'

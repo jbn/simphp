@@ -3458,6 +3458,8 @@
       this.fix_length_and_dec();
     }
     const_item() { return this.args.every((a) => a.const_item()); }
+    // (from the arguments: also right for conditions the optimizer builds)
+    used_tables() { return this.args.reduce((m, a) => m | a.used_tables(), 0); }
   }
   class Item_cond_and extends Item_cond {
     func_name() { return 'and'; }
@@ -6376,16 +6378,35 @@
       used |= s.t.map;
       // a range on more of the key than the ref uses
       if (s.type === 'ref' && s.quick && s.quick.key === s.refKey && refKeyLength(s) < s.quick.max_used_key_length) {
-        s.type = 'all'; s.refKey = -1; p.records = s.quick.records;
+        s.type = 'all'; s.refKey = -1; p.records = s.quick.records; p.useQuickRange = true;
       }
-      if (s.type === 'eq_ref' || s.type === 'ref') { if (s.quick && s.quick.key !== s.refKey) s.quick = null; if (s.type === 'eq_ref') s.quick = null; }
-      if ((i === 0 && (s.type === 'eq_ref' || s.type === 'ref')) || s.type === 'all') {
-        if (s.const_keys && s.impossible_range) plan.impossible = true;
-      }
-      if (s.type === 'all' && i === 0 && s.const_keys && THD.select_limit < p.records) {
-        const r = testQuickSelect(s, andConds(whereAll, s.on), s.keys, constMap, THD.select_limit);
-        if (r.quick) s.quick = r.quick;
-      }
+      const tmp = condForTable(whereAll, used, s.t.map, plan);
+      if (tmp || s.quick) {
+        const selCond = tmp ? (Array.isArray(tmp) ? (tmp.length > 1 ? tmp.reduce((x, y) => new Item_cond_and(x, y)) : tmp[0]) : tmp) : null;
+        if (s.type === 'eq_ref' || (s.type === 'ref' && s.quick && s.quick.key !== s.refKey)) s.quick = null;
+        if (i === 0 && (s.type === 'eq_ref' || s.type === 'ref')) {
+          if (s.const_keys && s.impossible_range) plan.impossible = true;
+        } else if (s.type === 'all' && !p.useQuickRange) {
+          if (s.const_keys && s.impossible_range) plan.impossible = true;
+          // check again whether an index helps: with the earlier tables' values
+          // (a range for each row), or for a LIMIT
+          let needed_reg = 0;
+          if (((s.keys & ~s.const_keys) && i > 0) || (s.const_keys && i === 0 && THD.select_limit < p.records)) {
+            const prev = used & ~s.t.map;
+            const r = testQuickSelect(s, andConds(selCond, s.on), s.keys, prev, THD.select_limit, constMap);
+            if (r.impossible) plan.impossible = true;
+            s.quick = r.quick;
+            needed_reg = r.needed_reg;
+          }
+          if (needed_reg & ~s.checked_keys) {
+            s.keys = needed_reg;
+            s.use_quick = 2;              // "range checked for each record"
+            s.rangeCond = selCond;
+            s.prevUsed = used & ~s.t.map;
+            s.cache = false;
+          }
+        }
+      } else s.quick = null;
       // make_join_readinfo(): a covering index is read instead of the rows
       if (s.type === 'all' && !s.quick && s.used_keys) s.index = shortestKey(s.share, s.used_keys);
     });
@@ -6570,8 +6591,9 @@
       let rec = Math.floor(s.records / MATCHING_ROWS_IN_OTHER_TABLE);
       const byKey = new Map();
       for (const u of s.keyuse) { if (!byKey.has(u.key)) byKey.set(u.key, []); byKey.get(u.key).push(u); }
-      // (TABLE::max_key_length: the longest key_length + key_parts)
-      const max_key_length = Math.max(...s.share.keys.map((k) => k.key_length + k.parts.length));
+      // (TABLE::max_key_length: the longest key_length + key_parts, from the
+      // .frm lengths, before NULL bytes are added)
+      const max_key_length = Math.max(...s.share.keys.map((k) => k.parts.reduce((n, p) => n + (p.length || s.share.fields[p.field].pack_length()), 0) + k.parts.length));
       for (const [key, uses] of byKey) {
         const k = s.share.keys[key];
         let found_part = 0, found_ref = 0;
@@ -6777,6 +6799,13 @@
       if (isLast) for (const c of conds) if (!done.has(c)) { levelConds.push(c); done.add(c); }
       const rowsOf = (combo) => {
         if (s.sortedRows) return s.sortedRows;
+        if (s.use_quick === 2) {
+          // the range optimizer again, with this row's values
+          setRowIn(tables, combo);
+          const r = testQuickSelect(s, s.rangeCond, s.keys, s.prevUsed, Infinity, s.prevUsed);
+          if (r.impossible) return [];
+          return r.quick ? r.quick.rows : [...s.share.scan()];
+        }
         if (s.type === 'eq_ref' || s.type === 'ref') {
           setRowIn(tables, combo);
           return lookupKey(s, s.refKey, s.refUses, false);
@@ -6834,6 +6863,9 @@
   // the cheapest key is read range by range, in key order (QUICK_SELECT)
   // ---------------------------------------------------------------------------
   const IMPOSSIBLE = { impossible: true };
+  // a key that depends on a table not read yet (SEL_ARG::MAYBE_KEY)
+  const MAYBE = { maybe: true };
+  const withMaybe = (t) => (t === IMPOSSIBLE || t === MAYBE || t.maybe ? t : Object.assign({}, t, { maybe: true }));
   // an interval: min/max are stored key values (null is SQL NULL, the
   // smallest); noMin/noMax for open ends; minNear/maxNear exclude the end
   const iv = (o) => Object.assign({ min: undefined, max: undefined, noMin: false, noMax: false, minNear: false, maxNear: false, next: null }, o);
@@ -6850,6 +6882,12 @@
     if (!a) return b;
     if (!b) return a;
     if (a === IMPOSSIBLE || b === IMPOSSIBLE) return IMPOSSIBLE;
+    if (a === MAYBE) return withMaybe(b);
+    if (b === MAYBE) return withMaybe(a);
+    if (a.maybe || b.maybe) {
+      const r = keyAnd(Object.assign({}, a, { maybe: false }), Object.assign({}, b, { maybe: false }));
+      return r === IMPOSSIBLE ? r : withMaybe(r);
+    }
     if (a.part > b.part) [a, b] = [b, a];
     if (a.part < b.part) {
       const ivs = [];
@@ -6904,6 +6942,7 @@
     if (!a || !b) return null;
     if (a === IMPOSSIBLE) return b;
     if (b === IMPOSSIBLE) return a;
+    if (a === MAYBE || b === MAYBE) return MAYBE;
     if (a.part !== b.part) return null;
     // the elementary pieces between the interval ends
     const pts = [];
@@ -6952,11 +6991,15 @@
   }
   // SEL_TREE: null is "can't use", ALWAYS, IMPOSSIBLE, or { keys: Map(nr -> SEL_ARG) }
   const ALWAYS = { always: true };
+  // SEL_TREE::MAYBE: a condition that doesn't use the table (true or false)
+  const TREE_MAYBE = { maybeTree: true };
   function treeAnd(t1, t2) {
     if (!t1) return t2;
     if (!t2) return t1;
     if (t1 === IMPOSSIBLE || t2 === ALWAYS) return t1;
     if (t2 === IMPOSSIBLE || t1 === ALWAYS) return t2;
+    if (t1 === TREE_MAYBE) return t2;
+    if (t2 === TREE_MAYBE) return t1;
     const keys = new Map(t1.keys);
     for (const [nr, k] of t2.keys) {
       const r = keyAnd(keys.get(nr) || null, k);
@@ -6969,6 +7012,8 @@
     if (!t1 || !t2) return null;
     if (t1 === IMPOSSIBLE || t2 === ALWAYS) return t2;
     if (t2 === IMPOSSIBLE || t1 === ALWAYS) return t1;
+    if (t1 === TREE_MAYBE) return t1;
+    if (t2 === TREE_MAYBE) return t2;
     const keys = new Map();
     for (const [nr, k] of t1.keys) {
       if (!t2.keys.has(nr)) continue;
@@ -6979,8 +7024,8 @@
   }
 
   class RangeParam {
-    constructor(s, keys, prev_tables) {
-      this.s = s; this.t = s.t; this.share = s.share; this.keys = keys; this.prev_tables = prev_tables;
+    constructor(s, keys, prev_tables, read_tables) {
+      this.s = s; this.t = s.t; this.share = s.share; this.keys = keys; this.prev_tables = prev_tables; this.read_tables = read_tables;
     }
     // get_mm_tree()
     tree(cond) {
@@ -6999,20 +7044,20 @@
           const t2 = this.tree(cond.args[i]);
           if (!t2) return null;
           tree = treeOr(tree, t2);
-          if (!tree) return null;
+          if (!tree || tree === ALWAYS) break;
         }
         return tree;
       }
       if (cond.const_item()) return cond.val_int() ? ALWAYS : IMPOSSIBLE;
       const ut = cond.used_tables();
-      if (ut & ~(this.prev_tables | this.t.map)) return null;
-      if (!(cond instanceof Item_func) || selectOptimize(cond) === 'NONE') return null;
+      if (ut & ~(this.prev_tables | this.read_tables | this.t.map)) return null;
+      if (!(cond instanceof Item_func)) return ut & this.t.map ? null : TREE_MAYBE;
+      if (!(ut & this.t.map)) return TREE_MAYBE;
+      if (selectOptimize(cond) === 'NONE') return null;
       if (cond instanceof Item_func_between) {
         if (cond.args[0].type() !== 'FIELD_ITEM') return null;
         const f = cond.args[0].field;
-        let tree = this.parts(f, 'GE', cond.args[1]);
-        if (tree) tree = treeAnd(tree, this.parts(f, 'LE', cond.args[2]));
-        return tree;
+        return treeAnd(this.parts(f, 'GE', cond.args[1]), this.parts(f, 'LE', cond.args[2]));
       }
       if (cond instanceof Item_func_in) {
         if (cond.item.type() !== 'FIELD_ITEM') return null;
@@ -7027,16 +7072,19 @@
         cond instanceof Item_func_lt ? 'LT' : cond instanceof Item_func_le ? 'LE' : cond instanceof Item_func_gt ? 'GT' :
         cond instanceof Item_func_ge ? 'GE' : null;
       if (!type) return null;
-      if (cond.args[0].type() === 'FIELD_ITEM') return this.parts(cond.args[0].field, type, cond.args.length > 1 ? cond.args[1] : null, cond);
-      // the reversed comparison (have_rev_func())
+      let tree = null;
+      if (cond.args[0].type() === 'FIELD_ITEM') tree = this.parts(cond.args[0].field, type, cond.args.length > 1 ? cond.args[1] : null, cond);
+      // "const op field": the reversed comparison (have_rev_func())
       const REV = { EQ: 'EQ', EQUAL: 'EQUAL', LT: 'GT', LE: 'GE', GT: 'LT', GE: 'LE' };
-      if (REV[type] && cond.args[1].type() === 'FIELD_ITEM') return this.parts(cond.args[1].field, REV[type], cond.args[0], cond);
-      return null;
+      if (!tree && REV[type] && cond.args[1].type() === 'FIELD_ITEM') return this.parts(cond.args[1].field, REV[type], cond.args[0], cond);
+      return tree;
     }
     // get_mm_parts(): the field's intervals in each key that has it
     parts(field, type, value, cond) {
       if (field.table !== this.t) return null;
-      if (value && (value.used_tables() & ~this.prev_tables)) return null;
+      if (value && (value.used_tables() & ~(this.prev_tables | this.read_tables))) return null;
+      // a value from a table not read yet: the key may be usable later
+      const maybe = value && (value.used_tables() & ~this.read_tables);
       let tree = null;
       for (const nr of this.keys) {
         const k = this.share.keys[nr];
@@ -7044,6 +7092,7 @@
           if (p.field !== field.idx) return;
           if (!tree) tree = { keys: new Map() };
           if (tree === IMPOSSIBLE) return;
+          if (maybe) { tree.keys.set(nr, keyAnd(tree.keys.get(nr) || null, MAYBE)); return; }
           const leaf = this.leaf(field, p, part, type, value, cond);
           if (!leaf) return;
           if (leaf === IMPOSSIBLE) { tree = IMPOSSIBLE; return; }
@@ -7213,9 +7262,9 @@
 
   // SQL_SELECT::test_quick_select() for table s with the keys keys_to_use:
   // { quick: { key, rows, records, read_time } | null, impossible, records }
-  function testQuickSelect(s, cond, keys_to_use, prev_tables, limit) {
+  function testQuickSelect(s, cond, keys_to_use, prev_tables, limit, read_tables = prev_tables) {
     const share = s.share;
-    const res = { quick: null, impossible: false, records: share.rows, quick_rows: {}, quick_key_parts: {} };
+    const res = { quick: null, impossible: false, records: share.rows, quick_rows: {}, quick_key_parts: {}, needed_reg: 0 };
     if (!cond || !limit || !keys_to_use) return res;
     let records = share.rows || 1;
     const scan_time = records / TIME_FOR_COMPARE + 1;
@@ -7224,13 +7273,15 @@
     else if (read_time <= 2.0) return res;
     const keys = [];
     share.keys.forEach((k, nr) => { if ((keys_to_use & (1 << nr)) && !(k.flags & HA_FULLTEXT)) keys.push(nr); });
-    const tree = new RangeParam(s, keys, prev_tables).tree(cond);
+    const tree = new RangeParam(s, keys, prev_tables, read_tables).tree(cond);
     let best = null;
     if (tree === IMPOSSIBLE) { records = 0; read_time = Infinity; }
     else if (tree && tree.keys) {
       for (const nr of keys) {
         const k = tree.keys.get(nr);
         if (!k) continue;
+        if (k === MAYBE || k.maybe) res.needed_reg |= 1 << nr;
+        if (k === MAYBE) continue;
         let found;
         if (k === IMPOSSIBLE) found = 0;
         else if (k.part !== 0) continue;
@@ -7754,6 +7805,7 @@
         if (!isConst) avail |= s.t.map;
         const extra = [];
         if (s.info) extra.push(s.info);
+        else if (s.use_quick === 2) extra.push('range checked for each record (index map: ' + s.keys + ')');
         else if (!isConst && (condForTable(where, avail, s.t.map, plan) || s.quick)) extra.push('where used');
         if (key_read) extra.push('Using index');
         if (s.not_exists_optimize && s.on) extra.push('Not exists');
