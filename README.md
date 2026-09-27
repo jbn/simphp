@@ -160,6 +160,7 @@ src/simphp_force.h     force-included into the PHP build (errno/strftime redirec
 web/                   the app: index.html + app.js (classic), fiddle.html + fiddle.js + fiddle-store.js (fiddles),
                        simweb.js (web server shared by both), worker.js, simphp-core.js, mysqld.js, php*.wasm
 bin/php411.js          PHP 4.1.1 in your terminal: node bin/php411.js -q script.php
+packages/simphp/       the engine as an npm library for Node and Web Workers (see its README)
 bin/serve.js           static server for web/
 tests/                 phpt runner, differential tests (+ corpus), MySQL snapshots
 reference/Dockerfile   native PHP 4.1.1 for i386 Linux, the ground truth
@@ -171,6 +172,7 @@ reference/Dockerfile   native PHP 4.1.1 for i386 Linux, the ground truth
 ./build.sh          # downloads php-4.1.1.tar.gz and emsdk on first run (~3 min)
 ./build.sh link     # relink only
 npm test            # phpt + MySQL + differential tests (the last needs Docker)
+npm run test:pkg    # copy the build into packages/simphp and run its smoke tests
 ```
 
 ## Deploying

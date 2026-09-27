@@ -1,0 +1,48 @@
+{
+  "name": "simphp",
+  "version": "0.1.0",
+  "description": "The original PHP 4.1.1 engine (Zend Engine 1) compiled to WebAssembly, runnable from Node and Web Workers",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jbn/simphp.git",
+    "directory": "packages/simphp"
+  },
+  "homepage": "https://simphp.infinitefun.com",
+  "main": "./index.js",
+  "module": "./index.mjs",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.mjs",
+      "require": "./index.js"
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "index.mjs",
+    "index.d.ts",
+    "dist/",
+    "LICENSE"
+  ],
+  "scripts": {
+    "sync": "node scripts/sync.js",
+    "prepack": "node scripts/sync.js",
+    "test": "node test/smoke.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "php",
+    "php4",
+    "wasm",
+    "webassembly",
+    "emscripten",
+    "interpreter",
+    "zend"
+  ]
+}

@@ -12,7 +12,8 @@
     "test:phpt": "node tests/run-phpt.js",
     "test:diff": "node tests/difftest.js",
     "php": "node bin/php411.js",
-    "test:mysql": "node tests/mysql-test.js"
+    "test:mysql": "node tests/mysql-test.js",
+    "test:pkg": "npm --prefix packages/simphp run sync && npm --prefix packages/simphp test"
   },
   "license": "MIT"
 }
