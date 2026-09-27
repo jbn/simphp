@@ -122,5 +122,199 @@
   ok affected=2 insert_id=5
 > REPLACE INTO rp VALUES (6, 'c', 5), (7, 'c', 6), (6, 'd', 7)
   ok affected=4 insert_id=0
-<br>
-<b>Fatal error</b>:  Call to undefined function:  mysql_info() in <b>/var/www/alter.php</b> on line <b>66</b><br>
+> REPLACE rp SET code = 'e', v = 8
+  ok affected=1 insert_id=8
+> SELECT * FROM rp
+  rows=5 fields=3
+  | '2' | 'a' | '2'
+  | '5' | 'b' | '4'
+  | '7' | 'c' | '6'
+  | '6' | 'd' | '7'
+  | '8' | 'e' | '8'
+> INSERT IGNORE INTO rp (code, v) VALUES ('e', 9), ('f', 10)
+  ok affected=1 insert_id=0
+> INSERT INTO rp (id, code) VALUES (100, 'z')
+  ok affected=1 insert_id=100
+> INSERT INTO rp (code) VALUES ('y')
+  ok affected=1 insert_id=101
+> INSERT INTO rp (id, code) VALUES (-5, 'neg')
+  ok affected=1 insert_id=-5
+> INSERT INTO rp (code) VALUES ('w')
+  ok affected=1 insert_id=2147483647
+> SELECT id, code FROM rp
+  rows=10 fields=2
+  | '2' | 'a'
+  | '5' | 'b'
+  | '7' | 'c'
+  | '6' | 'd'
+  | '8' | 'e'
+  | '9' | 'f'
+  | '100' | 'z'
+  | '101' | 'y'
+  | '-5' | 'neg'
+  | '2147483647' | 'w'
+> CREATE TEMPORARY TABLE tt (a int, b varchar(5))
+  ok affected=0 insert_id=0
+> INSERT INTO tt VALUES (1, 'x'), (2, 'y')
+  ok affected=2 insert_id=0
+> SELECT * FROM tt
+  rows=2 fields=2
+  | '1' | 'x'
+  | '2' | 'y'
+> SHOW TABLES
+  rows=2 fields=1
+  | 'al2'
+  | 'rp'
+> CREATE TEMPORARY TABLE rp (x int)
+  ok affected=0 insert_id=0
+> SELECT * FROM rp
+  rows=0 fields=1
+> DROP TABLE rp
+  ok affected=0 insert_id=0
+> SELECT COUNT(*) FROM rp
+  rows=1 fields=1
+  | '10'
+> CREATE TEMPORARY TABLE tt2 SELECT a * 2 AS dbl, b FROM tt
+  ok affected=2 insert_id=0
+> SELECT * FROM tt2
+  rows=2 fields=2
+  [dbl] table='tt2' type=int len=17 flags='' max=1 num=1 blob=0
+  [b] table='tt2' type=string len=5 flags='' max=1 num=0 blob=0
+  | '2' | 'x'
+  | '4' | 'y'
+> SET @a = 5, @b = 'text', @c = 1.5, @d = NULL
+  ok affected=0 insert_id=0
+> SELECT @a, @b, @c, @d, @nosuch, @a + @c
+  rows=1 fields=6
+  [@a] table='' type=int len=8192 flags='' max=1 num=1 blob=0
+  [@b] table='' type=string len=8192 flags='' max=4 num=0 blob=0
+  [@c] table='' type=real len=8192 flags='' max=3 num=1 blob=0
+  [@d] table='' type=string len=8192 flags='' max=0 num=0 blob=0
+  [@nosuch] table='' type=string len=8192 flags='' max=0 num=0 blob=0
+  [@a + @c] table='' type=real len=23 flags='' max=3 num=1 blob=0
+  | '5' | 'text' | '1.5' | NULL | NULL | '6.5'
+> SELECT @x := COUNT(*) FROM rp
+  rows=1 fields=1
+  [@x := COUNT(*)] table='' type=int len=21 flags='not_null' max=2 num=1 blob=0
+  | '10'
+> SELECT @x, @x * 2
+  rows=1 fields=2
+  | '10' | '20'
+> SET @n = 0
+  ok affected=0 insert_id=0
+> SELECT id, @n := @n + 1 AS seq FROM rp ORDER BY id DESC LIMIT 3
+  rows=3 fields=2
+  | '2147483647' | '1'
+  | '101' | '2'
+  | '100' | '3'
+> SET SQL_SELECT_LIMIT = 2
+  ok affected=0 insert_id=0
+> SELECT id FROM rp
+  rows=2 fields=1
+  | '-5'
+  | '2'
+> SELECT id FROM rp LIMIT 3
+  rows=3 fields=1
+  | '-5'
+  | '2'
+  | '5'
+> SET SQL_SELECT_LIMIT = DEFAULT
+  ok affected=0 insert_id=0
+> SELECT COUNT(*) FROM rp
+  rows=1 fields=1
+  | '10'
+> SET TIMESTAMP = 1009377005
+  ok affected=0 insert_id=0
+> SELECT NOW(), UNIX_TIMESTAMP(), CURDATE() + 0
+  rows=1 fields=3
+  | '2001-12-26 14:30:05' | '1009377005' | '20011226'
+> SET TIMESTAMP = DEFAULT
+  ok affected=0 insert_id=0
+> SET INSERT_ID = 500
+  ok affected=0 insert_id=0
+> INSERT INTO rp (code) VALUES ('ins')
+  ok affected=1 insert_id=500
+> SET LAST_INSERT_ID = 77
+  ok affected=0 insert_id=0
+> SELECT LAST_INSERT_ID()
+  rows=1 fields=1
+  | '77'
+> SET OPTION SQL_BIG_TABLES = 1
+  ok affected=0 insert_id=0
+> SET CHARACTER SET nosuch
+  ERR 1115: Unknown character set: 'nosuch'
+> SET SQL_QUOTE_SHOW_CREATE = 0
+  ok affected=0 insert_id=0
+> SHOW CREATE TABLE tt
+  rows=1 fields=2
+  | 'tt' | 'CREATE TEMPORARY TABLE tt (
+  a int(11) default NULL,
+  b varchar(5) default NULL
+) TYPE=MyISAM'
+> SET @@nosuch = 1
+  ERR 1064: You have an error in your SQL syntax near 'nosuch = 1' at line 1
+> LOCK TABLES rp READ, tt WRITE
+  ok affected=0 insert_id=0
+> SELECT COUNT(*) FROM rp
+  rows=1 fields=1
+  | '11'
+> SELECT COUNT(*) FROM al2
+  ERR 1100: Table 'al2' was not locked with LOCK TABLES
+> UPDATE rp SET v = 1
+  ERR 1099: Table 'rp' was locked with a READ lock and can't be updated
+> LOCK TABLES rp AS r WRITE
+  ok affected=0 insert_id=0
+> SELECT COUNT(*) FROM rp r
+  rows=1 fields=1
+  | '11'
+> SELECT COUNT(*) FROM rp
+  ERR 1100: Table 'rp' was not locked with LOCK TABLES
+> UNLOCK TABLES
+  ok affected=0 insert_id=0
+> SELECT COUNT(*) FROM al2
+  rows=1 fields=1
+  | '2'
+> CHECK TABLE rp, nosuch
+  rows=2 fields=4
+  [Table] table='' type=string len=128 flags='' max=11 num=0 blob=0
+  [Op] table='' type=string len=10 flags='' max=5 num=0 blob=0
+  [Msg_type] table='' type=string len=10 flags='' max=6 num=0 blob=0
+  [Msg_text] table='' type=string len=255 flags='' max=33 num=0 blob=0
+  | 'test.rp' | 'check' | 'status' | 'OK'
+  | 'test.nosuch' | 'check' | 'error' | 'Table 'test.nosuch' doesn't exist'
+> OPTIMIZE TABLE rp
+  rows=1 fields=4
+  [Table] table='' type=string len=128 flags='' max=7 num=0 blob=0
+  [Op] table='' type=string len=10 flags='' max=8 num=0 blob=0
+  [Msg_type] table='' type=string len=10 flags='' max=6 num=0 blob=0
+  [Msg_text] table='' type=string len=255 flags='' max=2 num=0 blob=0
+  | 'test.rp' | 'optimize' | 'status' | 'OK'
+> ANALYZE TABLE rp
+  rows=1 fields=4
+  [Table] table='' type=string len=128 flags='' max=7 num=0 blob=0
+  [Op] table='' type=string len=10 flags='' max=7 num=0 blob=0
+  [Msg_type] table='' type=string len=10 flags='' max=6 num=0 blob=0
+  [Msg_text] table='' type=string len=255 flags='' max=27 num=0 blob=0
+  | 'test.rp' | 'analyze' | 'status' | 'Table is already up to date'
+> REPAIR TABLE rp
+  rows=1 fields=4
+  [Table] table='' type=string len=128 flags='' max=7 num=0 blob=0
+  [Op] table='' type=string len=10 flags='' max=6 num=0 blob=0
+  [Msg_type] table='' type=string len=10 flags='' max=6 num=0 blob=0
+  [Msg_text] table='' type=string len=255 flags='' max=2 num=0 blob=0
+  | 'test.rp' | 'repair' | 'status' | 'OK'
+> TRUNCATE TABLE rp
+  ok affected=0 insert_id=0
+> INSERT INTO rp (code) VALUES ('new')
+  ok affected=1 insert_id=1
+> TRUNCATE nosuch
+  ERR 1146: Table 'test.nosuch' doesn't exist
+> DROP TABLE IF EXISTS rp, nosuch
+  ok affected=0 insert_id=0
+> FLUSH TABLES
+  ok affected=0 insert_id=0
+> DO 1 + 1, @q := 5
+  ok affected=0 insert_id=0
+> SELECT @q
+  rows=1 fields=1
+  | '5'

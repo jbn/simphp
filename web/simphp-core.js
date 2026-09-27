@@ -42,6 +42,22 @@
   for (const k of Object.keys(SYSTEM_FILES)) SYSTEM_BYTES[k] = enc.encode(SYSTEM_FILES[k]);
   const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 
+  // The file access mysqld gets: errors are Linux errnos (the mysqld
+  // process runs as root, so permissions don't stop it)
+  function mysqldFiles(FS) {
+    // Emscripten's errno numbers (WASI) -> Linux: ENOENT EACCES EEXIST ENOTDIR EISDIR
+    const LINUX = { 44: 2, 2: 13, 20: 17, 54: 20, 31: 21 };
+    const errno = (e) => (e && LINUX[e.errno]) || 2;
+    return {
+      mkdirp(path) { try { mkdirp(FS, path); } catch (e) {} },
+      read(path) { try { return FS.readFile(path); } catch (e) { return null; } },
+      stat(path) { try { return { mode: FS.stat(path).mode }; } catch (e) { return null; } },
+      write(path, data) {
+        try { FS.writeFile(path, data); FS.chmod(path, 0o666); return 0; } catch (e) { return errno(e); }
+      },
+    };
+  }
+
   function mkdirp(FS, path) {
     const parts = path.split('/').filter(Boolean);
     let cur = '';
@@ -166,6 +182,9 @@
             if (v && v.mtime) { try { FS.utime(path, v.mtime, v.mtime); } catch (e) {} }
           }
           if (opts.cwd) { mkdirp(FS, opts.cwd); FS.chdir(opts.cwd); }
+          // mysqld reads and writes files on the same machine (LOAD DATA
+          // INFILE, SELECT ... INTO OUTFILE, LOAD_FILE())
+          if (mysqld) mysqld.fs = mysqldFiles(FS);
         }],
       };
 
@@ -186,6 +205,7 @@
         } else { aborted = String(e && e.stack || e); }
       }
       flush();
+      if (mysqld) mysqld.fs = null;
 
       const stdout = new Uint8Array(outLen);
       let o = 0;

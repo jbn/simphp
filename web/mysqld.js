@@ -309,7 +309,7 @@
     NONEXISTING_GRANT: 1141, TABLEACCESS_DENIED: 1142, WRONG_COLUMN_NAME: 1166, WRONG_KEY_COLUMN: 1167,
     BLOB_KEY_WITHOUT_LENGTH: 1170, PRIMARY_CANT_HAVE_NULL: 1171, TOO_MANY_ROWS: 1172, REQUIRES_PRIMARY_KEY: 1173,
     KEY_DOES_NOT_EXITS: 1176, CHECK_NOT_IMPLEMENTED: 1178, CANT_DO_THIS_DURING_AN_TRANSACTION: 1179,
-    NO_PERMISSION_TO_CREATE_USER: 1211, NO_SUCH_TABLE: 1146, TABLE_CANT_HANDLE_BLOB: 1163, TABLE_CANT_HANDLE_AUTO_INCREMENT: 1164, TABLE_CANT_HANDLE_FULLTEXT: 1214, FILE_EXISTS_ERROR: 1086, NOT_ALLOWED_COMMAND: 1148, FILE_NOT_FOUND: 1017, LOAD_INFO: 1087, WRONG_SUB_KEY: 1089, NO_TABLES_USED: 1096, TOO_BIG_SET: 1097, UNION_TABLES_IN_DIFFERENT_DIR: 1212, SYNTAX: 1149,
+    NO_PERMISSION_TO_CREATE_USER: 1211, NO_SUCH_TABLE: 1146, TEXTFILE_NOT_READABLE: 1085, TABLE_CANT_HANDLE_BLOB: 1163, TABLE_CANT_HANDLE_AUTO_INCREMENT: 1164, TABLE_CANT_HANDLE_FULLTEXT: 1214, FILE_EXISTS_ERROR: 1086, NOT_ALLOWED_COMMAND: 1148, FILE_NOT_FOUND: 1017, LOAD_INFO: 1087, WRONG_SUB_KEY: 1089, NO_TABLES_USED: 1096, TOO_BIG_SET: 1097, UNION_TABLES_IN_DIFFERENT_DIR: 1212, SYNTAX: 1149,
   };
   // "You have an error in your SQL syntax near '...' at line N"
   function parseError(rest, line) {
@@ -1092,7 +1092,7 @@
       this.selectOptions(sel);
       this.selectItemList(sel);
       // select_into: [select_from] | opt_into select_from | select_from opt_into
-      if (this.is('INTO')) { this.optInto(sel); if (this.is('FROM')) this.selectFrom(sel); }
+      if (this.is('INTO')) { this.optInto(sel); this.selectFrom(sel); }
       else if (this.is('FROM')) { this.selectFrom(sel); if (this.is('INTO')) this.optInto(sel); }
       this.selectLockType(sel);
       return sel;
@@ -4161,7 +4161,15 @@
       while (p-- > 0) out.push(String(b[p]));
       return out.join('.');
     }, function () { this.decimals = 0; this.max_length = 3 * 8 + 7; }),
-    load_file: mkStr('load_file', 1, () => null, function () { this.binary = true; this.maybe_null = true; this.max_length = MAX_BLOB_WIDTH; }),
+    // Item_load_file: a world-readable file of at most max_allowed_packet bytes
+    load_file: mkStr('load_file', 1, (v) => {
+      const srv = THD.conn.srv;
+      const path = absPath(srv, v[0]);
+      const s = srv.fileStat(path);
+      if (!s || !(s.mode & 4) || (s.mode & 0o170000) !== 0o100000) return null;
+      const d = srv.fileRead(path);
+      return d === null || d.length > 1048576 ? null : d;
+    }, function () { this.binary = true; this.maybe_null = true; this.max_length = MAX_BLOB_WIDTH; }),
     encrypt: mkStr('encrypt', 1, function (v, a) {
       if (!v[0].length) return '';
       let salt;
@@ -5898,9 +5906,12 @@
     insertRow(rec) {
       const pos = this.free.length ? this.free.pop() : this.slots.length;
       this.slots[pos] = rec;
+      // _mi_new(): the first key of an index allocates its root page
+      if (!this.count && this.keys.length) this.not_sorted_pages = true;
       this.count++;
       this.indexAdd(pos, rec);
       this.placeBlock(pos, rec);
+      this.noteAutoValue(rec);
       return pos;
     }
     deleteRow(pos) {
@@ -5908,12 +5919,27 @@
       this.slots[pos] = null;
       this.free.push(pos);
       this.count--;
+      // _mi_dispose(): the last key frees the root page
+      if (!this.count && this.keys.length) this.not_sorted_pages = true;
     }
     updateRow(pos, rec) {
       this.indexRemove(pos, this.slots[pos]);
       this.slots[pos] = rec;
       this.indexAdd(pos, rec);
       this.placeBlock(pos, rec);
+      this.noteAutoValue(rec);
+    }
+    // update_auto_increment() (mi_key.c): MyISAM keeps the largest value
+    // written, read from the record as an unsigned number of the column's
+    // width (so -5 in an INT is 4294967291); the next value is one more
+    noteAutoValue(rec) {
+      if (this.auto_field < 0) return;
+      const v = rec[this.auto_field];
+      if (v === null) return;
+      const bits = { [T.TINY]: 8, [T.YEAR]: 8, [T.SHORT]: 16, [T.INT24]: 24, [T.LONG]: 32 }[this.fields[this.auto_field].real_type()] || 64;
+      const n = typeof v === 'bigint' ? v : typeof v === 'number' && Number.isInteger(v) ? BigInt(v) : dbl2ll(v);
+      const u = BigInt.asUintN(bits, n);
+      if (u + 1n > BigInt(this.auto_increment)) this.auto_increment = Number(u + 1n);
     }
     truncate() { this.slots = []; this.free = []; this.count = 0; this.indexes = null; this.blocks = null; }
     // unique key lookup: a string that is equal for values MySQL's key compares as equal
@@ -6536,7 +6562,7 @@
     return true;
   }
   // test_if_skip_sort_order() for GROUP BY on the first table
-  function skipSortOrder(plan, first, list) {
+  function skipSortOrder(plan, first, list, select_limit = Infinity) {
     if (!first) return false;
     const s = plan.tabs.find((x) => x.t === first);
     let usable = -1 >>> 0;
@@ -6557,7 +6583,8 @@
     };
     const ref_key = s.type === 'ref' || s.type === 'eq_ref' ? s.refKey : s.quick ? s.quick.key : -1;
     if (ref_key >= 0) return !!((usable & (1 << ref_key)) && orderByKey(ref_key) === 1);
-    let keys = usable & s.used_keys;
+    // without a LIMIT below the row count only a covering index is worth it
+    let keys = select_limit >= s.share.rows ? usable & s.used_keys : usable;
     for (let nr = 0; nr < s.share.keys.length; nr++) {
       if (keys & (1 << nr)) {
         const flag = orderByKey(nr);
@@ -6593,6 +6620,7 @@
       const levelConds = ready();
       if (isLast) for (const c of conds) if (!done.has(c)) { levelConds.push(c); done.add(c); }
       const rowsOf = (combo) => {
+        if (s.sortedRows) return s.sortedRows;
         if (s.type === 'eq_ref' || s.type === 'ref') {
           setRowIn(tables, combo);
           return lookupKey(s, s.refKey, s.refUses, false);
@@ -6988,6 +7016,16 @@
         need_tmp = true; simple_order = simple_group = false;
       }
       const grouped = group.length > 0 || hadGroup || hasSum;
+      // create_sort_index() without a temporary table: the first table is read
+      // in the order (by an index, or filesort), and the select list is
+      // evaluated for each row sent (end_send), up to the LIMIT
+      const lateEval = !need_tmp && !grouped && !distinct;
+      if (lateEval && order.length && first) {
+        const s = plan.tabs.find((x) => x.t === first);
+        const select_limit = this.having || nonConst.length > 1 || limit === Infinity ? Infinity : limit + offset;
+        if (!skipSortOrder(plan, first, order, select_limit)) s.sortedRows = this.filesortFirst(plan, s, order);
+        order = [];
+      }
       // metadata mode
       this.tmpMode = null;
       if (need_tmp) this.tmpMode = group.length || (hadGroup && this.distinctGroup) ? 'group' : 'refs';
@@ -6996,6 +7034,18 @@
 
       // join, then group, having, distinct, order, limit
       const combos = executeJoin(this, plan);
+      if (lateEval) {
+        const rows = [];
+        let skip = offset;
+        for (const c of combos) {
+          if (rows.length >= limit) break;
+          this.setRow(c);
+          if (this.having && !this.having.val_int()) continue;
+          if (skip) { skip--; continue; }
+          rows.push(this.makeRow().cells);
+        }
+        return { fields: this.fieldsOf(null), rows };
+      }
       let outRows;
       if (grouped) outRows = this.doGroup(combos, group, no_order || this.distinctGroup && !this.order.length ? null : group, hasSum);
       else outRows = combos.map((c) => { this.setRow(c); return this.having && !this.having.val_int() ? null : this.makeRow(); }).filter(Boolean);
@@ -7004,6 +7054,28 @@
       if (order.length) outRows = this.sortRows(outRows, order);
       if (offset || limit !== Infinity) outRows = outRows.slice(offset, limit === Infinity ? undefined : offset + limit);
       return { fields: this.fieldsOf(this.tmpMode), rows: outRows.map((r) => r.cells) };
+    }
+    // filesort() of the first table: its rows by the sort keys, then by position
+    filesortFirst(plan, s, order) {
+      let rows;
+      setRowIn(this.tables, plan.constCombo);
+      if (s.type === 'eq_ref' || s.type === 'ref') rows = lookupKey(s, s.refKey, s.refUses, false);
+      else if (s.quick) rows = s.quick.rows;
+      else rows = [...s.share.scan()];
+      const keyed = rows.map((r) => {
+        const n = plan.constCombo.slice();
+        n[s.t.tablenr] = r;
+        setRowIn(this.tables, n);
+        return { r, keys: order.map((o) => cellOf(o.item, null)) };
+      });
+      keyed.sort((a, b) => {
+        for (let k = 0; k < order.length; k++) {
+          const c = sortCompare(a.keys[k], b.keys[k], order[k].asc);
+          if (c) return c;
+        }
+        return a.r.pos - b.r.pos;
+      });
+      return keyed.map((x) => x.r);
     }
     // return_zero_rows(): no rows, or one row of the group functions
     zeroRows(sendRow) {
@@ -7235,10 +7307,6 @@
     const dup = share.findDuplicate(t.record, -1);
     if (dup) return dup;
     t.pos = share.insertRow(t.record.slice());
-    if (share.auto_field >= 0) {
-      const v = t.fields[share.auto_field].val_int();
-      if (v >= BigInt(share.auto_increment)) share.auto_increment = Number(v) + 1;
-    }
     share.touch();
     return null;
   }
@@ -7421,10 +7489,6 @@
           share.updateRow(r.pos, t.record.slice());
           share.touch();
           updated++;
-          if (share.auto_field >= 0) {
-            const v = t.fields[share.auto_field].val_int();
-            if (v >= BigInt(share.auto_increment)) share.auto_increment = Number(v) + 1;
-          }
         }
       }
       if (!--st.limitLeft && false) break;
@@ -8439,6 +8503,7 @@
       this.tz = new TimeZone('UTC');
       this.userLocks = new Map();
       this.files = null;
+      this.fs = null;
       this.outfiles = new Map();
     }
     // the time zone mysqld runs in (its TZ environment variable)
@@ -8577,13 +8642,26 @@
     getTable(db, name) { const d = this.dbs.get(db); return (d && d.tables.get(name)) || null; }
     addTable(sh) { this.dbs.get(sh.db).tables.set(sh.name, sh); this.dirtyDbs.add(sh.db); }
     dropTable(db, name) { const d = this.dbs.get(db); if (d) d.tables.delete(name); this.dirtyDbs.add(db); }
-    // a file on the simulated disk (LOAD DATA INFILE, LOAD_FILE())
-    readFile(path) {
+    // Files on the simulated machine. While PHP runs, simphp-core gives the
+    // server its file system (fs: read/stat/write); otherwise the files it
+    // was synced from are read, and files written go out with exportTo().
+    fileRead(path) {
+      if (this.fs) { const d = this.fs.read(path); return d === null ? null : bytesToStr(d); }
       if (this.outfiles.has(path)) return bytesToStr(this.outfiles.get(path));
       const f = this.files && this.files[path];
       if (!f) return null;
       const d = f.data !== undefined ? f.data : f;
       return typeof d === 'string' ? d : bytesToStr(d);
+    }
+    fileStat(path) {
+      if (this.fs) return this.fs.stat(path);
+      return this.outfiles.has(path) || (this.files && this.files[path]) ? { mode: 0o100644 } : null;
+    }
+    // 0 or an errno
+    fileWrite(path, str) {
+      if (this.fs) return this.fs.write(path, strToBytes(str));
+      this.outfiles.set(path, strToBytes(str));
+      return 0;
     }
     connect() { return new Connection(this); }
   }
@@ -8726,6 +8804,19 @@
       const s = bytesToStr(p);
       this.lastActive = nowSeconds();
       if (!this.authed) return this.handshake(p, s, seq);
+      if (this.pendingLoad) {
+        if (p.length) { this.pendingLoad.chunks.push(s); return undefined; }
+        const { st, chunks } = this.pendingLoad;
+        this.pendingLoad = null;
+        try {
+          THD.conn = this;
+          const r = execLoad(this, st, chunks.join(''));
+          return this.ok(seq + 1, r.affected, 0, r.info);
+        } catch (e) {
+          if (e instanceof SqlError) return this.err(seq + 1, e.code, e.message);
+          return this.err(seq + 1, ER.UNKNOWN_ERROR, ERRMSG[ER.UNKNOWN_ERROR - 1000]);
+        } finally { THD.count_cuted_fields = false; }
+      }
       const cmd = p[0];
       const arg = s.slice(1);
       const srv = this.srv;
@@ -8739,6 +8830,11 @@
             return this.ok(seq + 1);
           case 3: {                                                           // COM_QUERY
             const res = this.execute(arg);
+            if (res.localFile !== undefined) {
+              // LOAD DATA LOCAL: ask the client for the file (packets up to an empty one)
+              this.pendingLoad = { st: res.st, chunks: [] };
+              return this.send('\xfb' + res.localFile, seq + 1);
+            }
             if (res.fields) return this.sendResult(res, seq + 1);
             return this.ok(seq + 1, res.affected || 0, res.insertId || 0, res.info || '');
           }
@@ -8909,7 +9005,14 @@
           return { affected: 0 };
         }
         case 'table_maint': return this.tableMaint(st);
-        case 'load': return execLoad(this, st);
+        case 'load':
+          if (st.local) {
+            if (!(this.clientFlags & 128)) throw myError(ER.NOT_ALLOWED_COMMAND);
+            // check the table now; the file comes in the next packets
+            openTables(this, [{ db: st.table.db, name: st.table.table, alias: st.table.table }], true);
+            return { localFile: st.file, st };
+          }
+          return execLoad(this, st);
         default: throw myError(ER.UNKNOWN_ERROR);
       }
     }
@@ -8920,7 +9023,7 @@
       q.prepare();
       if (st.describe) return explain(this, q);
       const res = q.run();
-      if (st.into) return selectInto(this, st.into, res);
+      if (st.into) { res.items = q.items; return selectInto(this, st.into, res); }
       return res;
     }
     set(st) {
@@ -8956,7 +9059,7 @@
         rows.push([name, st.op, 'status', adminTable(share, st) ? 'OK' : 'Table is already up to date']);
         this.dirty(share);
       }
-      return { fields: [strCol('Table', NAME_LEN * 2), strCol('Op', 10), strCol('Msg_type', 10), strCol('Msg_text', 255)], rows };
+      return { fields: [strCol('Table', NAME_LEN * 2, true), strCol('Op', 10, true), strCol('Msg_type', 10, true), strCol('Msg_text', 255, true)], rows };
     }
   }
 
@@ -9009,110 +9112,327 @@
     return { fields, rows };
   }
 
-  // SELECT ... INTO OUTFILE / DUMPFILE (sql_class.cc select_export)
+  // ---------------------------------------------------------------------------
+  // Files: SELECT ... INTO OUTFILE and LOAD DATA INFILE work on the simulated
+  // machine's file system (mysqld's current directory is its datadir)
+  // ---------------------------------------------------------------------------
+  const EE_FILENOTFOUND = 0, EE_CANTCREATEFILE = 1, EE_STAT = 13;
+  const EE_MSG = { [EE_FILENOTFOUND]: "File '%s' not found (Errcode: %d)", [EE_CANTCREATEFILE]: "Can't create/write to file '%s' (Errcode: %d)",
+    [EE_STAT]: "Can't get stat of '%s' (Errcode: %d)" };
+  // my_error() with a mysys code: code 0 becomes ER_UNKNOWN_ERROR (my_message_sql())
+  const eeError = (code, path, errno) => new SqlError(code || ER.UNKNOWN_ERROR, cfmt(EE_MSG[code], [path, errno]));
+  function absPath(srv, path) {
+    const parts = [];
+    for (const p of ((path[0] === '/' ? '' : srv.datadir) + path).split('/')) {
+      if (p === '' || p === '.') continue;
+      if (p === '..') parts.pop(); else parts.push(p);
+    }
+    return '/' + parts.join('/');
+  }
+
+  // select_export / select_dump (sql_class.cc)
   function selectInto(conn, ex, res) {
-    let path = ex.outfile;
-    if (path[0] !== '/') path = conn.srv.datadir + (conn.db ? conn.db + '/' : '') + path;
-    if (conn.srv.readFile(path) !== null) throw myError(ER.FILE_EXISTS_ERROR, ex.outfile);
+    const srv = conn.srv;
+    // fn_format(): a name without a directory is in the database directory
+    const name = ex.outfile.includes('/') ? ex.outfile : (conn.db ? conn.db + '/' : '') + ex.outfile;
+    const path = absPath(srv, name);
+    if (srv.fileStat(path)) throw myError(ER.FILE_EXISTS_ERROR, ex.outfile);
     const cellStr = (v) => (v === null || typeof v === 'string' ? v : v.val_str());
     let out = '';
     if (ex.dump) {
-      if (res.rows.length > 1) throw myError(ER.TOO_MANY_ROWS);
-      for (const row of res.rows) for (const v of row) { const s = cellStr(v); if (s !== null) out += s; }
+      if (res.rows.length > 1) {
+        // the first row is written, then the file is deleted again
+        throw myError(ER.TOO_MANY_ROWS);
+      }
+      for (const row of res.rows) for (const v of row) { const s = cellStr(v); out += s === null ? '\0' : s; }
     } else {
-      const fterm = ex.field_term === undefined ? '\t' : ex.field_term, lterm = ex.line_term === undefined ? '\n' : ex.line_term;
-      const encl = ex.enclosed || '', esc = ex.escaped === undefined ? '\\' : ex.escaped, lstart = ex.line_start || '';
+      const field_term = ex.field_term === undefined ? '\t' : ex.field_term;
+      let line_term = ex.line_term === undefined ? '\n' : ex.line_term;
+      const enclosed = ex.enclosed || '', escaped = ex.escaped === undefined ? '\\' : ex.escaped, line_start = ex.line_start || '';
+      if (!line_term.length) line_term = field_term;
+      const field_sep_char = enclosed.length ? enclosed[0] : field_term.length ? field_term[0] : null;
+      const escape_char = escaped.length ? escaped[0] : null;
+      const line_sep_char = line_term.length ? line_term[0] : null;
+      let opt_enclosed = !!ex.opt_enclosed;
+      if (!field_term.length) opt_enclosed = false;
+      if (!enclosed.length) opt_enclosed = true;
+      const items = res.fields;
+      const blob_flag = res.items.some((it) => it.max_length >= MAX_BLOB_WIDTH);
+      const fixed_row_size = !field_term.length && !enclosed.length && !blob_flag;
       for (const row of res.rows) {
-        out += lstart;
+        out += line_start;
         row.forEach((v, i) => {
+          const item = res.items[i];
+          const isString = item.result_type() === STRING_RESULT;
           const s = cellStr(v);
-          if (s === null) out += esc ? esc + 'N' : 'NULL';
-          else {
-            const numeric = res.fields[i].type !== T.STRING && res.fields[i].type !== T.VAR_STRING && !(res.fields[i].flags & F.BLOB);
-            const e = ex.opt_enclosed && numeric ? '' : encl;
-            let t = '';
-            for (const c of s) {
-              if (esc && (c === esc || c === '\0' || (e && c === e) || (!e && (c === fterm[0] || c === lterm[0])))) t += esc + (c === '\0' ? '0' : c);
-              else t += c;
-            }
-            out += e + t + e;
+          const encl = s !== null && (!opt_enclosed || isString);
+          if (encl) out += enclosed;
+          let used = 0;
+          if (s === null) {
+            if (!fixed_row_size) out += escape_char !== null ? escape_char + 'N' : 'NULL';
+          } else {
+            used = fixed_row_size ? Math.min(s.length, item.max_length) : s.length;
+            const t = s.slice(0, used);
+            if (isString && escape_char !== null) {
+              for (const c of t) {
+                if (c === escape_char || c === field_sep_char || c === line_sep_char || c === '\0') out += escape_char + (c === '\0' ? '0' : c);
+                else out += c;
+              }
+            } else out += t;
           }
-          if (i < row.length - 1) out += fterm;
+          if (fixed_row_size && item.max_length > used) out += ' '.repeat(item.max_length - used);
+          if (encl) out += enclosed;
+          if (i < row.length - 1) out += field_term;
         });
-        out += lterm;
+        out += line_term;
       }
     }
-    conn.srv.outfiles.set(path, strToBytes(out));
+    // (the database directories exist on a real server)
+    if (srv.fs && srv.fs.mkdirp && conn.db && path.startsWith(srv.datadir + conn.db + '/')) srv.fs.mkdirp(srv.datadir + conn.db);
+    const err = srv.fileWrite(path, out);
+    if (err) throw eeError(EE_CANTCREATEFILE, name, err);
     return { affected: res.rows.length };
   }
 
-  // LOAD DATA INFILE (sql_load.cc): server-side files from the simulated disk
-  function execLoad(conn, st) {
-    if (st.local) throw myError(ER.NOT_ALLOWED_COMMAND);
+  // READ_INFO (sql_load.cc): the reader of LOAD DATA
+  const EOF = -1, NONE = -2;
+  class ReadInfo {
+    constructor(data, field_term, line_start, line_term, enclosed, escape_char) {
+      this.data = data; this.p = 0; this.stack = [];
+      if (field_term === line_term) line_term = '';
+      this.field_term = field_term; this.line_term = line_term; this.line_start = line_start;
+      this.enclosed_char = enclosed.length ? cc(enclosed, 0) : NONE;
+      this.field_term_char = field_term.length ? cc(field_term, 0) : NONE;
+      this.line_term_char = line_term.length ? cc(line_term, 0) : NONE;
+      this.escape_char = escape_char;
+      this.start_of_line = line_start.length > 0;
+      this.found_end_of_line = this.eof = this.found_null = this.line_cuted = false;
+      this.enclosed = false;
+      this.row = '';
+    }
+    get() { return this.stack.length ? this.stack.pop() : this.p < this.data.length ? cc(this.data, this.p++) : EOF; }
+    push(c) { this.stack.push(c); }
+    terminator(str) {
+      let chr = 0, i;
+      for (i = 1; i < str.length; i++) if ((chr = this.get()) !== cc(str, i)) break;
+      if (i === str.length) return true;
+      this.push(chr);
+      for (let k = i - 1; k >= 1; k--) this.push(cc(str, k));
+      return false;
+    }
+    unescape(chr) {
+      switch (chr) {
+        case 110: return 10; case 116: return 9; case 114: return 13; case 98: return 8;
+        case 48: return 0; case 90: return 26;
+        case 78: this.found_null = true; return chr;
+        default: return chr;
+      }
+    }
+    find_start_of_fields() {
+      const ls = this.line_start;
+      for (;;) {
+        let chr;
+        do {
+          if ((chr = this.get()) === EOF) { this.found_end_of_line = this.eof = true; return true; }
+        } while ((chr & 255) !== cc(ls, 0));
+        let k = 1;
+        for (; k < ls.length; k++) {
+          chr = this.get();
+          if ((chr & 255) !== cc(ls, k)) {
+            this.push(chr);
+            while (--k !== 0) this.push(cc(ls, k));
+            break;
+          }
+        }
+        if (k === ls.length) return false;
+      }
+    }
+    // one field: false when there is one (in this.row), true at the end of the line
+    read_field() {
+      this.found_null = false;
+      if (this.found_end_of_line) return true;
+      if (this.start_of_line) {
+        this.start_of_line = false;
+        if (this.find_start_of_fields()) return true;
+      }
+      let chr = this.get();
+      if (chr === EOF) { this.found_end_of_line = this.eof = true; return true; }
+      const to = [];
+      let found_enclosed_char;
+      if (chr === this.enclosed_char) { found_enclosed_char = this.enclosed_char; to.push(chr); }
+      else { found_enclosed_char = NONE; this.push(chr); }
+      const done = (enclosed, eol, start) => {
+        this.enclosed = enclosed;
+        if (eol) this.found_end_of_line = true;
+        this.row = String.fromCharCode(...to.slice(start));
+        return false;
+      };
+      for (;;) {
+        chr = this.get();
+        if (chr === EOF) { this.found_end_of_line = this.eof = true; return done(false, false, 0); }
+        if (chr === this.escape_char) {
+          if ((chr = this.get()) === EOF) { to.push(this.escape_char); this.found_end_of_line = this.eof = true; return done(false, false, 0); }
+          to.push(this.unescape(chr));
+          continue;
+        }
+        if (chr === this.line_term_char && found_enclosed_char === NONE) {
+          if (this.terminator(this.line_term)) return done(false, true, 0);
+        }
+        if (chr === found_enclosed_char) {
+          if ((chr = this.get()) === found_enclosed_char) { to.push(chr); continue; }
+          if (chr === EOF || (chr === this.line_term_char && this.terminator(this.line_term))) return done(true, true, 1);
+          if (chr === this.field_term_char && this.terminator(this.field_term)) return done(true, false, 1);
+          this.push(chr);
+          chr = 34;                   // (MySQL copies a '"', whatever the enclosing character)
+        } else if (chr === this.field_term_char && found_enclosed_char === NONE) {
+          if (this.terminator(this.field_term)) return done(false, false, 0);
+        }
+        to.push(chr);
+      }
+    }
+    read_fixed_length(maxLen) {
+      if (this.found_end_of_line) return true;
+      if (this.start_of_line) {
+        this.start_of_line = false;
+        if (this.find_start_of_fields()) return true;
+      }
+      const to = [];
+      while (to.length < maxLen) {
+        let chr = this.get();
+        if (chr === EOF) { this.found_end_of_line = this.eof = true; this.row = String.fromCharCode(...to); return !to.length; }
+        if (chr === this.escape_char) {
+          if ((chr = this.get()) === EOF) { to.push(this.escape_char); this.found_end_of_line = this.eof = true; this.row = String.fromCharCode(...to); return false; }
+          to.push(this.unescape(chr));
+          continue;
+        }
+        if (chr === this.line_term_char && this.terminator(this.line_term)) {
+          this.found_end_of_line = true;
+          this.row = String.fromCharCode(...to);
+          return false;
+        }
+        to.push(chr);
+      }
+      this.row = String.fromCharCode(...to);
+      return false;
+    }
+    next_line() {
+      this.line_cuted = false;
+      this.start_of_line = this.line_start.length > 0;
+      if (this.found_end_of_line || this.eof) { this.found_end_of_line = false; return this.eof; }
+      if (!this.line_term.length) return false;
+      for (;;) {
+        const chr = this.get();
+        if (chr === EOF) { this.eof = true; return true; }
+        if (chr === this.escape_char) {
+          this.line_cuted = true;
+          if (this.get() === EOF) return true;
+          continue;
+        }
+        if (chr === this.line_term_char && this.terminator(this.line_term)) return false;
+        this.line_cuted = true;
+      }
+    }
+  }
+
+  // mysql_load() (sql_load.cc); data is the file sent by the client for LOCAL
+  function execLoad(conn, st, data) {
+    const srv = conn.srv;
+    const escaped = st.escaped === undefined ? '\\' : st.escaped, enclosed = st.enclosed || '';
+    const field_term = st.field_term === undefined ? '\t' : st.field_term, line_term = st.line_term === undefined ? '\n' : st.line_term;
+    const line_start = st.line_start || '';
+    if (escaped.length > 1 || enclosed.length > 1) throw myError(ER.WRONG_FIELD_TERMINATORS);
     const ref = { db: st.table.db, name: st.table.table, alias: st.table.table };
-    const [t] = openTables(conn, [ref]);
-    let path = st.file;
-    if (path[0] !== '/') path = conn.srv.datadir + t.db + '/' + path;
-    const data = conn.srv.readFile(path);
-    if (data === null) throw myError(ER.FILE_NOT_FOUND, path, 2);
+    const [t] = openTables(conn, [ref], true);
     const ctx = { tables: [t], where: 'field list', allow_sum_func: false, conn };
     const fields = st.fields.length ? setupTargetFields(ctx, st.fields) : t.fields;
-    const fterm = st.field_term === undefined ? '\t' : st.field_term, lterm = st.line_term === undefined ? '\n' : st.line_term;
-    const encl = st.enclosed || '', esc = st.escaped === undefined ? '\\' : st.escaped, lstart = st.line_start || '';
-    const mode = st.duplicates;
+    const use_blobs = fields.some((f) => f.flags & F.BLOB);
+    const use_timestamp = fields.some((f) => f.idx === t.share.timestamp_field);
+    if (use_blobs && !line_term.length && !field_term.length) throw myError(ER.BLOBS_AND_NO_TERMINATED);
+    let mode = st.duplicates;
+    const local = data !== undefined;
+    if (local && mode === 'error') mode = 'ignore';
+    if (!local) {
+      let name, path;
+      if (!st.file.includes('/')) {
+        name = './' + (conn.db || '') + '/' + st.file;
+        path = absPath(srv, name);
+      } else {
+        name = st.file;
+        path = absPath(srv, name);
+        const s = srv.fileStat(path);
+        if (!s) throw eeError(EE_STAT, name, 2);
+        // readable by others, and a regular file
+        if (!(s.mode & 4) || (s.mode & 0o170000) !== 0o100000) throw myError(ER.TEXTFILE_NOT_READABLE, name);
+      }
+      data = srv.fileRead(path);
+      if (data === null) throw eeError(EE_FILENOTFOUND, name, 2);
+    }
+    const ri = new ReadInfo(data, field_term, line_start, line_term, enclosed, escaped.length ? cc(escaped, 0) : NONE);
     const info = { records: 0, deleted: 0, copied: 0 };
     THD.count_cuted_fields = true;
     THD.cuted_fields = 0;
     t.next_number = true;
-    t.set_timestamp = true;
-    let pos = 0, skip = st.skip || 0;
-    const unesc = (c) => ({ 0: '\0', b: '\b', n: '\n', r: '\r', t: '\t', Z: '\x1a', N: null }[c] !== undefined ? { 0: '\0', b: '\b', n: '\n', r: '\r', t: '\t', Z: '\x1a' }[c] : c);
+    t.set_timestamp = !use_timestamp;
+    const auto = t.share.auto_field >= 0 ? t.fields[t.share.auto_field] : null;
     try {
-      while (pos < data.length) {
-        if (lstart) { const k = data.indexOf(lstart, pos); if (k < 0) break; pos = k + lstart.length; }
-        const values = [];
-        let lineEnd = false;
-        while (!lineEnd) {
-          let v = '', isNull = false, enclosed = false;
-          if (encl && data.startsWith(encl, pos)) { enclosed = true; pos += encl.length; }
-          for (;;) {
-            if (pos >= data.length) { lineEnd = true; break; }
-            const c = data[pos];
-            if (esc && c === esc && pos + 1 < data.length) {
-              const n = data[pos + 1];
-              if (n === 'N' && !v && !enclosed) isNull = true; else v += unesc(n);
-              pos += 2;
-              continue;
-            }
-            if (enclosed && data.startsWith(encl, pos)) {
-              if (data.startsWith(encl + encl, pos)) { v += encl; pos += 2 * encl.length; continue; }
-              pos += encl.length;
-              enclosed = false;
-              continue;
-            }
-            if (!enclosed && data.startsWith(fterm, pos) && fterm) { pos += fterm.length; break; }
-            if (!enclosed && data.startsWith(lterm, pos)) { pos += lterm.length; lineEnd = true; break; }
-            v += c;
-            pos++;
+      if (line_term.length && field_term.length) {
+        for (let n = st.skip || 0; n > 0; n--) if (ri.next_line()) break;
+      }
+      if (!field_term.length && !enclosed.length) {
+        // read_fixed_length(): columns of their display width
+        const width = fields.reduce((n, f) => n + (f.flags & F.BLOB ? 256 : f.field_length), 0);
+        for (const f of fields) f.set_notnull();
+        while (!ri.read_fixed_length(width)) {
+          const row = ri.row;
+          let pos = 0;
+          for (const f of fields) {
+            if (pos === row.length) { cut(); f.reset(); continue; }
+            const length = Math.min(row.length - pos, f.field_length);
+            f.store_str(row.substr(pos, length));
+            pos = Math.min(pos + length, row.length);
           }
-          values.push(isNull ? null : v);
+          if (pos !== row.length) cut();
+          writeRecord(conn, t, info, mode);
+          if (auto) auto.reset();
+          if (ri.next_line()) break;
+          if (ri.line_cuted) cut();
         }
-        if (skip) { skip--; continue; }
-        t.restoreDefaults();
-        fields.forEach((f, i) => {
-          if (i >= values.length) { cut(); return; }
-          const v = values[i];
-          if (v === null || (v === 'NULL' && !encl)) set_field_to_null(f);
-          else { f.set_notnull(); f.store_str(v); }
-        });
-        if (values.length > fields.length) cut();
-        writeRecord(conn, t, info, mode === 'error' ? 'error' : mode);
+      } else {
+        // read_sep_field()
+        for (;;) {
+          let missing = -1;
+          for (let i = 0; i < fields.length; i++) {
+            if (ri.read_field()) { missing = i; break; }
+            const f = fields[i], row = ri.row;
+            if ((!ri.enclosed && enclosed.length && row === 'NULL') || (row.length === 1 && ri.found_null)) {
+              f.reset();
+              f.set_null();
+              if (!f.maybe_null()) { if (f.type() === T.TIMESTAMP) f.set_time(); else cut(); }
+              continue;
+            }
+            f.set_notnull();
+            f.store_str(row);
+          }
+          if (missing === 0) break;
+          if (missing > 0) {
+            for (let i = missing; i < fields.length; i++) {
+              const f = fields[i];
+              if (f.nullable) f.set_null(); else f.reset();
+              cut();
+            }
+          }
+          writeRecord(conn, t, info, mode);
+          if (auto) auto.reset();
+          if (ri.next_line()) break;
+          if (ri.line_cuted) cut();
+        }
       }
     } finally {
       THD.count_cuted_fields = false;
       if (info.copied || info.deleted) conn.dirty(t.share);
     }
-    return { affected: info.copied + info.deleted, info: INFO(ER.LOAD_INFO, info.records, info.deleted, info.records - info.copied - info.deleted, THD.cuted_fields) };
+    return { affected: info.copied + info.deleted, insertId: 0n,
+      info: INFO(ER.LOAD_INFO, info.records, info.deleted, info.records - info.copied, THD.cuted_fields) };
   }
 
   // mysql_install_db (scripts/mysql_install_db.sh): the grant tables

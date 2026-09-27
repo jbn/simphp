@@ -1,0 +1,116 @@
+> CREATE TABLE fx (id int NOT NULL auto_increment PRIMARY KEY, name varchar(20), note text, price decimal(6,2), d date, ts timestamp(14))
+  ok affected=0 insert_id=0
+> INSERT INTO fx (name, note, price, d, ts) VALUES ('plain', 'a b', 1.5, '2001-12-26', 20011226120000), ('tab\there', 'line\nbreak', NULL, NULL, 20011226120000), ('quote"s', 'back\\slash', -3, '1999-01-02', 20011226120000), (NULL, '', 0, '0000-00-00', 20011226120000), ('comma,x', 'nul\0byte', 99.99, '2001-01-01', 20011226120000)
+  ok affected=5 insert_id=0
+> SELECT * FROM fx INTO OUTFILE '/tmp/out1.txt'
+  ok affected=5 insert_id=0
+  file /tmp/out1.txt: 231 bytes
+  : 1<TAB>plain<TAB>a b<TAB>1.50<TAB>2001-12-26<TAB>20011226120000
+  : 2<TAB>tab\<TAB>here<TAB>line\
+  : break<TAB>\N<TAB>\N<TAB>20011226120000
+  : 3<TAB>quote"s<TAB>back\\slash<TAB>-3.00<TAB>1999-01-02<TAB>20011226120000
+  : 4<TAB>\N<TAB><TAB>0.00<TAB>0000-00-00<TAB>20011226120000
+  : 5<TAB>comma,x<TAB>nul\0byte<TAB>99.99<TAB>2001-01-01<TAB>20011226120000
+  : 
+> SELECT * FROM fx INTO OUTFILE '/tmp/out1.txt'
+  ERR 1086: File '/tmp/out1.txt' already exists
+> SELECT id, name, price INTO OUTFILE '/tmp/out2.txt' FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\r\n' FROM fx WHERE id < 5
+  ok affected=4 insert_id=0
+  file /tmp/out2.txt: 64 bytes
+  : 1,"plain",1.50<CR>
+  : 2,"tab<TAB>here",\N<CR>
+  : 3,"quote\"s",-3.00<CR>
+  : 4,\N,0.00<CR>
+  : 
+> SELECT name, price, d FROM fx ORDER BY id DESC INTO OUTFILE '/tmp/out3.txt' FIELDS TERMINATED BY '' ENCLOSED BY '' ESCAPED BY '' LINES STARTING BY '>' TERMINATED BY '|'
+  ok affected=5 insert_id=0
+  file /tmp/out3.txt: 200 bytes
+  : >comma,x             99.99   2001-01-01|>                    0.00    0000-00-00|>quote"s             -3.00   1999-01-02|>tab<TAB>here                              |>plain               1.50    2001-12-26|
+> SELECT note FROM fx WHERE id = 3 INTO DUMPFILE '/tmp/dump.bin'
+  ok affected=1 insert_id=0
+  file /tmp/dump.bin: 10 bytes
+  : back\slash
+> SELECT note FROM fx INTO DUMPFILE '/tmp/dump2.bin'
+  ERR 1172: Result consisted of more than one row
+> SELECT 1 INTO OUTFILE '/nosuchdir/x.txt'
+  ERR 1064: You have an error in your SQL syntax near '' at line 1
+> SELECT LOAD_FILE('/tmp/dump.bin'), LOAD_FILE('/tmp/nosuch'), LENGTH(LOAD_FILE('/tmp/out1.txt'))
+  rows=1 fields=3
+  [LOAD_FILE('/tmp/dump.bin')] table='' type=string len=8192 flags='' max=10 num=0 blob=0
+  [LOAD_FILE('/tmp/nosuch')] table='' type=string len=8192 flags='' max=0 num=0 blob=0
+  [LENGTH(LOAD_FILE('/tmp/out1.txt'))] table='' type=int len=10 flags='' max=3 num=1 blob=0
+  | 'back\slash' | NULL | '231'
+> CREATE TABLE ld (id int NOT NULL auto_increment PRIMARY KEY, name varchar(10), n int NOT NULL, d date, t timestamp(14))
+  ok affected=0 insert_id=0
+> LOAD DATA INFILE '/tmp/out2.txt' INTO TABLE ld FIELDS TERMINATED BY ',' ENCLOSED BY '"' LINES TERMINATED BY '\r\n' (id, name, n)
+  ok affected=4 insert_id=0
+> SELECT id, name, n, d, t IS NOT NULL FROM ld
+  rows=4 fields=5
+  | '1' | 'plain' | '1' | NULL | '1'
+  | '2' | 'tab	here' | '0' | NULL | '1'
+  | '3' | 'quote"s' | '-3' | NULL | '1'
+  | '4' | NULL | '0' | NULL | '1'
+> DELETE FROM ld
+  ok affected=0 insert_id=0
+> LOAD DATA INFILE '/tmp/in1.txt' INTO TABLE ld (id, name, n, d)
+  ERR 1062: Duplicate entry '2' for key 1
+> SELECT id, name, n, d FROM ld
+  rows=5 fields=4
+  | '1' | 'one' | '10' | '2001-12-01'
+  | '2' | 'two' | '0' | NULL
+  | '3' | '"three"' | '30' | NULL
+  | '4' | '' | '0' | '0000-00-00'
+  | '5' | 'five is to' | '5' | '0000-00-00'
+> LOAD DATA INFILE '/tmp/in1.txt' REPLACE INTO TABLE ld (id, name, n, d)
+  ok affected=13 insert_id=0
+> LOAD DATA INFILE '/tmp/in1.txt' IGNORE INTO TABLE ld IGNORE 2 LINES (id, name, n, d)
+  ok affected=1 insert_id=0
+> SELECT id, name, n, d FROM ld
+  rows=7 fields=4
+  | '1' | 'one' | '10' | '2001-12-01'
+  | '2' | 'dup' | '22' | '2001-01-01'
+  | '3' | '"three"' | '30' | NULL
+  | '4' | '' | '0' | '0000-00-00'
+  | '5' | 'five is to' | '5' | '0000-00-00'
+  | '6' | 'esc	tab
+nl' | '6' | '2001-06-06'
+  | '7' | '' | '0' | '0000-00-00'
+> LOAD DATA INFILE '/tmp/nosuch.txt' INTO TABLE ld
+  ERR 13: Can't get stat of '/tmp/nosuch.txt' (Errcode: 2)
+> LOAD DATA INFILE 'nosuch.txt' INTO TABLE ld
+  ERR 1105: File './test/nosuch.txt' not found (Errcode: 2)
+> LOAD DATA INFILE '/tmp/in1.txt' INTO TABLE nosuch
+  ERR 1146: Table 'test.nosuch' doesn't exist
+> LOAD DATA INFILE '/tmp/in1.txt' INTO TABLE ld FIELDS ESCAPED BY 'ab'
+  ERR 1083: Field separator argument is not what is expected. Check the manual
+> LOAD DATA INFILE '/tmp/in1.txt' INTO TABLE ld
+  ERR 1085: The file '/tmp/in1.txt' must be in the database directory or be readable by all
+> CREATE TABLE fw (id int, name char(10), n int(11), d date)
+  ok affected=0 insert_id=0
+> LOAD DATA INFILE '/tmp/in2.txt' INTO TABLE fw FIELDS TERMINATED BY '' ENCLOSED BY ''
+  ok affected=2 insert_id=0
+> SELECT * FROM fw
+  rows=2 fields=4
+  | '7' | 'bc       0' | '420' | '2001-02-03'
+  | '8' | 'y' | '0' | '0000-00-00'
+> LOAD DATA LOCAL INFILE '/tmp/local.csv' INTO TABLE ld FIELDS TERMINATED BY ',' ENCLOSED BY '"' IGNORE 1 LINES (id, name)
+  ok affected=3 insert_id=0
+> SELECT id, name, n FROM ld WHERE id >= 10
+  rows=3 fields=3
+  | '10' | 'ten, with' | '0'
+  | '11' | 'say "hi"' | '0'
+  | '12' | NULL | '0'
+> LOAD DATA LOCAL INFILE '/tmp/nosuch.csv' INTO TABLE ld
+  ERR 0: File '/tmp/nosuch.csv' not found (Errcode: 2)
+> SELECT id, name INTO OUTFILE 'rel.txt' FROM ld WHERE id < 3
+  ok affected=2 insert_id=0
+> CREATE TABLE ld2 (id int, name varchar(10))
+  ok affected=0 insert_id=0
+> LOAD DATA INFILE 'rel.txt' INTO TABLE ld2
+  ok affected=2 insert_id=0
+> SELECT * FROM ld2
+  rows=2 fields=2
+  | '1' | 'one'
+  | '2' | 'dup'
+> SELECT id INTO OUTFILE 'rel.txt' FROM ld
+  ERR 1086: File 'rel.txt' already exists
