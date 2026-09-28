@@ -175,6 +175,10 @@ What differs from a real 3.23.49 server:
 * **Row estimates** model an index that fits in one B-tree page, which is
   exact for small tables. On large tables MySQL's estimates, and so its plan
   choices, can differ.
+* **`COUNT()` next to `COUNT(DISTINCT)`**: in a `GROUP BY` query that also
+  has a `COUNT(DISTINCT ...)`, MySQL 3.23 counts the NULL row of a
+  `LEFT JOIN`ed table in `COUNT(column)` of a `NOT NULL` column. The emulator
+  doesn't count it.
 * **Full-text search**: `FULLTEXT` indexes can be created, but
   `MATCH ... AGAINST` is not implemented.
 * **Concurrency**: connections never wait for each other. Another

@@ -1,0 +1,240 @@
+> CREATE TABLE au (aid int NOT NULL auto_increment PRIMARY KEY, name varchar(20) NOT NULL, country char(2))
+  ok affected=0 insert_id=0
+> CREATE TABLE bk (bid int NOT NULL auto_increment PRIMARY KEY, aid int, title varchar(30) NOT NULL, year int, KEY aid (aid))
+  ok affected=0 insert_id=0
+> CREATE TABLE rv (rid int NOT NULL auto_increment PRIMARY KEY, bid int NOT NULL, stars tinyint, KEY bid (bid))
+  ok affected=0 insert_id=0
+> CREATE TABLE ct (country char(2) NOT NULL PRIMARY KEY, cname varchar(20))
+  ok affected=0 insert_id=0
+> INSERT INTO au (name, country) VALUES ('Knuth', 'us'), ('Wirth', 'ch'), ('Dijkstra', 'nl'), ('Hoare', 'gb'), ('Nobody', NULL)
+  ok affected=5 insert_id=0
+> INSERT INTO bk (aid, title, year) VALUES (1, 'TAOCP 1', 1968), (1, 'TAOCP 2', 1969), (2, 'Pascal', 1970), (3, 'Structured Prog', 1972), (NULL, 'Anonymous', 1999), (1, 'TeXbook', 1984), (9, 'Orphan', 2000)
+  ok affected=7 insert_id=0
+> INSERT INTO rv (bid, stars) VALUES (1, 5), (1, 4), (3, 3), (6, 5), (6, NULL), (4, 2), (99, 1)
+  ok affected=7 insert_id=0
+> INSERT INTO ct VALUES ('us', 'USA'), ('ch', 'Switzerland'), ('nl', 'Netherlands'), ('fr', 'France')
+  ok affected=4 insert_id=0
+> SELECT au.name, bk.title FROM au INNER JOIN bk ON bk.aid = au.aid
+  rows=5 fields=2
+  [name] table='au' type=string len=20 flags='not_null' max=8 num=0 blob=0
+  [title] table='bk' type=string len=30 flags='not_null' max=15 num=0 blob=0
+  | 'Knuth' | 'TAOCP 1'
+  | 'Knuth' | 'TAOCP 2'
+  | 'Wirth' | 'Pascal'
+  | 'Dijkstra' | 'Structured Prog'
+  | 'Knuth' | 'TeXbook'
+> SELECT au.name, bk.title FROM au JOIN bk ON bk.aid = au.aid WHERE bk.year > 1969
+  ERR 1064: You have an error in your SQL syntax near 'ON bk.aid = au.aid WHERE bk.year > 1969' at line 1
+> SELECT au.name, bk.title FROM au CROSS JOIN bk WHERE bk.aid = au.aid AND au.aid = 1
+  rows=3 fields=2
+  | 'Knuth' | 'TAOCP 1'
+  | 'Knuth' | 'TAOCP 2'
+  | 'Knuth' | 'TeXbook'
+> SELECT au.name, bk.title FROM au STRAIGHT_JOIN bk WHERE bk.aid = au.aid
+  rows=5 fields=2
+  | 'Knuth' | 'TAOCP 1'
+  | 'Knuth' | 'TAOCP 2'
+  | 'Wirth' | 'Pascal'
+  | 'Dijkstra' | 'Structured Prog'
+  | 'Knuth' | 'TeXbook'
+> SELECT au.name, bk.title FROM bk STRAIGHT_JOIN au WHERE bk.aid = au.aid
+  rows=5 fields=2
+  | 'Knuth' | 'TAOCP 1'
+  | 'Knuth' | 'TAOCP 2'
+  | 'Knuth' | 'TeXbook'
+  | 'Wirth' | 'Pascal'
+  | 'Dijkstra' | 'Structured Prog'
+> SELECT name, title FROM au LEFT JOIN bk USING (aid)
+  rows=7 fields=2
+  | 'Knuth' | 'TAOCP 1'
+  | 'Knuth' | 'TAOCP 2'
+  | 'Knuth' | 'TeXbook'
+  | 'Wirth' | 'Pascal'
+  | 'Dijkstra' | 'Structured Prog'
+  | 'Hoare' | NULL
+  | 'Nobody' | NULL
+> SELECT name, title FROM au LEFT OUTER JOIN bk ON au.aid = bk.aid AND bk.year < 1970
+  rows=6 fields=2
+  | 'Knuth' | 'TAOCP 1'
+  | 'Knuth' | 'TAOCP 2'
+  | 'Wirth' | NULL
+  | 'Dijkstra' | NULL
+  | 'Hoare' | NULL
+  | 'Nobody' | NULL
+> SELECT name, title FROM bk RIGHT JOIN au ON au.aid = bk.aid
+  rows=7 fields=2
+  | 'Knuth' | 'TAOCP 1'
+  | 'Knuth' | 'TAOCP 2'
+  | 'Knuth' | 'TeXbook'
+  | 'Wirth' | 'Pascal'
+  | 'Dijkstra' | 'Structured Prog'
+  | 'Hoare' | NULL
+  | 'Nobody' | NULL
+> SELECT name, title FROM bk RIGHT OUTER JOIN au USING (aid) WHERE title IS NULL
+  rows=2 fields=2
+  | 'Hoare' | NULL
+  | 'Nobody' | NULL
+> SELECT au.name, ct.cname FROM au NATURAL LEFT JOIN ct
+  rows=5 fields=2
+  [name] table='au' type=string len=20 flags='not_null' max=8 num=0 blob=0
+  [cname] table='ct' type=string len=20 flags='' max=11 num=0 blob=0
+  | 'Knuth' | 'USA'
+  | 'Wirth' | 'Switzerland'
+  | 'Dijkstra' | 'Netherlands'
+  | 'Hoare' | NULL
+  | 'Nobody' | NULL
+> SELECT au.name, ct.cname FROM au NATURAL JOIN ct
+  rows=3 fields=2
+  | 'Knuth' | 'USA'
+  | 'Wirth' | 'Switzerland'
+  | 'Dijkstra' | 'Netherlands'
+> SELECT * FROM au NATURAL RIGHT JOIN ct
+  rows=4 fields=5
+  | '1' | 'Knuth' | 'us' | 'us' | 'USA'
+  | '2' | 'Wirth' | 'ch' | 'ch' | 'Switzerland'
+  | '3' | 'Dijkstra' | 'nl' | 'nl' | 'Netherlands'
+  | NULL | NULL | NULL | 'fr' | 'France'
+> SELECT au.name, bk.title FROM { oj au LEFT OUTER JOIN bk ON au.aid = bk.aid }
+  rows=7 fields=2
+  | 'Knuth' | 'TAOCP 1'
+  | 'Knuth' | 'TAOCP 2'
+  | 'Knuth' | 'TeXbook'
+  | 'Wirth' | 'Pascal'
+  | 'Dijkstra' | 'Structured Prog'
+  | 'Hoare' | NULL
+  | 'Nobody' | NULL
+> SELECT au.name, bk.title, rv.stars FROM au, bk, rv WHERE bk.aid = au.aid AND rv.bid = bk.bid
+  rows=6 fields=3
+  [name] table='au' type=string len=20 flags='not_null' max=8 num=0 blob=0
+  [title] table='bk' type=string len=30 flags='not_null' max=15 num=0 blob=0
+  [stars] table='rv' type=int len=4 flags='' max=1 num=1 blob=0
+  | 'Knuth' | 'TAOCP 1' | '5'
+  | 'Knuth' | 'TAOCP 1' | '4'
+  | 'Wirth' | 'Pascal' | '3'
+  | 'Knuth' | 'TeXbook' | '5'
+  | 'Knuth' | 'TeXbook' | NULL
+  | 'Dijkstra' | 'Structured Prog' | '2'
+> SELECT au.name, bk.title, rv.stars FROM au LEFT JOIN bk ON bk.aid = au.aid LEFT JOIN rv ON rv.bid = bk.bid
+  rows=9 fields=3
+  | 'Knuth' | 'TAOCP 1' | '5'
+  | 'Knuth' | 'TAOCP 1' | '4'
+  | 'Knuth' | 'TAOCP 2' | NULL
+  | 'Knuth' | 'TeXbook' | '5'
+  | 'Knuth' | 'TeXbook' | NULL
+  | 'Wirth' | 'Pascal' | '3'
+  | 'Dijkstra' | 'Structured Prog' | '2'
+  | 'Hoare' | NULL | NULL
+  | 'Nobody' | NULL | NULL
+> SELECT au.name, COUNT(rv.rid) AS n, AVG(rv.stars) FROM au LEFT JOIN bk ON bk.aid = au.aid LEFT JOIN rv ON rv.bid = bk.bid GROUP BY au.aid ORDER BY n DESC, au.name
+  rows=5 fields=3
+  | 'Knuth' | '4' | '4.6667'
+  | 'Dijkstra' | '1' | '2.0000'
+  | 'Wirth' | '1' | '3.0000'
+  | 'Hoare' | '0' | NULL
+  | 'Nobody' | '0' | NULL
+> SELECT au.name, ct.cname, bk.title, rv.stars FROM au, ct, bk, rv WHERE ct.country = au.country AND bk.aid = au.aid AND rv.bid = bk.bid ORDER BY rv.stars DESC, bk.title
+  rows=6 fields=4
+  | 'Knuth' | 'USA' | 'TAOCP 1' | '5'
+  | 'Knuth' | 'USA' | 'TeXbook' | '5'
+  | 'Knuth' | 'USA' | 'TAOCP 1' | '4'
+  | 'Wirth' | 'Switzerland' | 'Pascal' | '3'
+  | 'Dijkstra' | 'Netherlands' | 'Structured Prog' | '2'
+  | 'Knuth' | 'USA' | 'TeXbook' | NULL
+> SELECT ct.cname, COUNT(au.aid), COUNT(bk.bid), MAX(bk.year) FROM ct LEFT JOIN au ON au.country = ct.country LEFT JOIN bk ON bk.aid = au.aid GROUP BY ct.country
+  rows=4 fields=4
+  | 'Switzerland' | '1' | '1' | '1970'
+  | 'France' | '0' | '0' | NULL
+  | 'Netherlands' | '1' | '1' | '1972'
+  | 'USA' | '3' | '3' | '1984'
+> SELECT b1.title, b2.title FROM bk b1, bk b2 WHERE b1.aid = b2.aid AND b1.bid < b2.bid
+  rows=3 fields=2
+  | 'TAOCP 1' | 'TAOCP 2'
+  | 'TAOCP 1' | 'TeXbook'
+  | 'TAOCP 2' | 'TeXbook'
+> SELECT DISTINCT au.name FROM au, bk WHERE au.aid = bk.aid
+  rows=3 fields=1
+  | 'Knuth'
+  | 'Wirth'
+  | 'Dijkstra'
+> SELECT au.name FROM au LEFT JOIN bk ON au.aid = bk.aid WHERE bk.bid IS NULL
+  rows=2 fields=1
+  | 'Hoare'
+  | 'Nobody'
+> SELECT bk.title FROM bk LEFT JOIN au ON au.aid = bk.aid WHERE au.aid IS NULL
+  rows=2 fields=1
+  | 'Anonymous'
+  | 'Orphan'
+> SELECT au.name, bk.title FROM au, bk WHERE au.aid = bk.aid AND (au.country = 'us' OR bk.year > 1971)
+  rows=4 fields=2
+  | 'Knuth' | 'TAOCP 1'
+  | 'Knuth' | 'TAOCP 2'
+  | 'Dijkstra' | 'Structured Prog'
+  | 'Knuth' | 'TeXbook'
+> SELECT au.name, bk.title FROM au LEFT JOIN bk ON au.aid = bk.aid LIMIT 3
+  rows=3 fields=2
+  | 'Knuth' | 'TAOCP 1'
+  | 'Knuth' | 'TAOCP 2'
+  | 'Knuth' | 'TeXbook'
+> SELECT au.name, bk.title FROM au LEFT JOIN bk ON au.aid = bk.aid ORDER BY bk.year DESC LIMIT 3
+  rows=3 fields=2
+  | 'Knuth' | 'TeXbook'
+  | 'Dijkstra' | 'Structured Prog'
+  | 'Wirth' | 'Pascal'
+> SELECT au.name, MAX(bk.year) FROM au LEFT JOIN bk ON au.aid = bk.aid GROUP BY au.name HAVING MAX(bk.year) > 1970 OR MAX(bk.year) IS NULL
+  rows=4 fields=2
+  | 'Dijkstra' | '1972'
+  | 'Hoare' | NULL
+  | 'Knuth' | '1984'
+  | 'Nobody' | NULL
+> SELECT * FROM au JOIN bk
+  rows=35 fields=7
+  | '1' | 'Knuth' | 'us' | '1' | '1' | 'TAOCP 1' | '1968'
+  | '2' | 'Wirth' | 'ch' | '1' | '1' | 'TAOCP 1' | '1968'
+  | '3' | 'Dijkstra' | 'nl' | '1' | '1' | 'TAOCP 1' | '1968'
+  | '4' | 'Hoare' | 'gb' | '1' | '1' | 'TAOCP 1' | '1968'
+  | '5' | 'Nobody' | NULL | '1' | '1' | 'TAOCP 1' | '1968'
+  | '1' | 'Knuth' | 'us' | '2' | '1' | 'TAOCP 2' | '1969'
+  | '2' | 'Wirth' | 'ch' | '2' | '1' | 'TAOCP 2' | '1969'
+  | '3' | 'Dijkstra' | 'nl' | '2' | '1' | 'TAOCP 2' | '1969'
+  | '4' | 'Hoare' | 'gb' | '2' | '1' | 'TAOCP 2' | '1969'
+  | '5' | 'Nobody' | NULL | '2' | '1' | 'TAOCP 2' | '1969'
+  | '1' | 'Knuth' | 'us' | '3' | '2' | 'Pascal' | '1970'
+  | '2' | 'Wirth' | 'ch' | '3' | '2' | 'Pascal' | '1970'
+  | '3' | 'Dijkstra' | 'nl' | '3' | '2' | 'Pascal' | '1970'
+  | '4' | 'Hoare' | 'gb' | '3' | '2' | 'Pascal' | '1970'
+  | '5' | 'Nobody' | NULL | '3' | '2' | 'Pascal' | '1970'
+  | '1' | 'Knuth' | 'us' | '4' | '3' | 'Structured Prog' | '1972'
+  | '2' | 'Wirth' | 'ch' | '4' | '3' | 'Structured Prog' | '1972'
+  | '3' | 'Dijkstra' | 'nl' | '4' | '3' | 'Structured Prog' | '1972'
+  | '4' | 'Hoare' | 'gb' | '4' | '3' | 'Structured Prog' | '1972'
+  | '5' | 'Nobody' | NULL | '4' | '3' | 'Structured Prog' | '1972'
+  | '1' | 'Knuth' | 'us' | '5' | NULL | 'Anonymous' | '1999'
+  | '2' | 'Wirth' | 'ch' | '5' | NULL | 'Anonymous' | '1999'
+  | '3' | 'Dijkstra' | 'nl' | '5' | NULL | 'Anonymous' | '1999'
+  | '4' | 'Hoare' | 'gb' | '5' | NULL | 'Anonymous' | '1999'
+  | '5' | 'Nobody' | NULL | '5' | NULL | 'Anonymous' | '1999'
+  | '1' | 'Knuth' | 'us' | '6' | '1' | 'TeXbook' | '1984'
+  | '2' | 'Wirth' | 'ch' | '6' | '1' | 'TeXbook' | '1984'
+  | '3' | 'Dijkstra' | 'nl' | '6' | '1' | 'TeXbook' | '1984'
+  | '4' | 'Hoare' | 'gb' | '6' | '1' | 'TeXbook' | '1984'
+  | '5' | 'Nobody' | NULL | '6' | '1' | 'TeXbook' | '1984'
+  | '1' | 'Knuth' | 'us' | '7' | '9' | 'Orphan' | '2000'
+  | '2' | 'Wirth' | 'ch' | '7' | '9' | 'Orphan' | '2000'
+  | '3' | 'Dijkstra' | 'nl' | '7' | '9' | 'Orphan' | '2000'
+  | '4' | 'Hoare' | 'gb' | '7' | '9' | 'Orphan' | '2000'
+  | '5' | 'Nobody' | NULL | '7' | '9' | 'Orphan' | '2000'
+> SELECT * FROM au LEFT JOIN bk
+  ERR 1064: You have an error in your SQL syntax near '' at line 1
+> SELECT * FROM au LEFT JOIN nosuch ON 1
+  ERR 1146: Table 'test.nosuch' doesn't exist
+> SELECT * FROM au, bk WHERE aid = 1
+  ERR 1052: Column: 'aid' in where clause is ambiguous
+> SELECT * FROM au a, bk a
+  ERR 1066: Not unique table/alias: 'a'
+> SELECT * FROM au LEFT JOIN bk USING (nosuch)
+  ERR 1054: Unknown column 'au.nosuch' in 'on clause'
+> SELECT * FROM au LEFT JOIN bk ON bk.aid = rv.bid
+  ERR 1109: Unknown table 'rv' in on clause
+> SELECT au.*, bk.title FROM au LEFT JOIN bk ON bk.aid = au.aid WHERE au.aid = 2
+  rows=1 fields=4
+  | '2' | 'Wirth' | 'ch' | 'Pascal'

@@ -7674,8 +7674,21 @@
       ctx.where = 'where clause';
       ctx.allow_sum_func = false;
       if (sel.where) sel.where.fix_fields(ctx);
-      for (const t of this.tables) if (t.ref.on) { t.ref.on.fix_fields(ctx); }
-      for (const t of this.tables) if (t.ref.natural) t.ref.on = this.naturalCond(t);
+      // setup_conds(): the ON of an inner join, and a NATURAL join's
+      // equalities, become part of the WHERE; outer joins keep them
+      const andConds = (a, b) => (a && b ? new Item_cond_and(a, b) : a || b);
+      for (const t of this.tables) {
+        if (t.ref.on) {
+          ctx.where = 'on clause';
+          t.ref.on.fix_fields(ctx);
+          if (!t.ref.outer) { sel.where = andConds(sel.where, t.ref.on); t.ref.on = null; }
+        }
+        if (t.ref.natural) {
+          const cond = this.naturalCond(t);
+          if (!t.ref.outer) sel.where = andConds(sel.where, cond);
+          else t.ref.on = andConds(t.ref.on, cond);
+        }
+      }
       ctx.allow_sum_func = true;
       // ORDER BY, GROUP BY
       ctx.where = 'order clause';
@@ -7717,8 +7730,9 @@
       for (const f of t.fields) {
         const g = other.field(f.field_name);
         if (!g) continue;
-        const a = new Item_field(null, null, f.field_name); a.set_field(g);
-        const b = new Item_field(null, null, f.field_name); b.set_field(f);
+        // (this table's column = the other table's, as setup_conds() makes it)
+        const a = new Item_field(null, null, f.field_name); a.set_field(f);
+        const b = new Item_field(null, null, f.field_name); b.set_field(g);
         const eq = new Item_func_eq(a, b);
         eq.fix_fields(this.ctx);
         cond = cond ? new Item_cond_and(cond, eq) : eq;
@@ -8270,7 +8284,7 @@
   }
   function splitAnd(cond) {
     if (!cond) return [];
-    if (cond instanceof Item_cond_and) return cond.args.slice();
+    if (cond instanceof Item_cond_and) return cond.args.flatMap(splitAnd);
     return [cond];
   }
   function isSubpart(a, b) {
