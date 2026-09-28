@@ -83,7 +83,7 @@ there is no real process table in a browser.
   - CGI requests are included too: GET/POST, multipart uploads, cookies and
     sessions.
   - **All 96 are identical.**
-* **MySQL differential testing** (`tests/mysql-difftest.js`): each of 24
+* **MySQL differential testing** (`tests/mysql-difftest.js`): each of 25
   scripts in `tests/mysql/` runs on native PHP 4.1.1 against a **real MySQL
   3.23.49 server** built from the original sources (`reference/mysql.Dockerfile`)
   and on the wasm build against the emulated server, and stdout is compared
@@ -94,7 +94,7 @@ there is no real process table in a browser.
     - column types and conversions, dates, the function library, collation,
       `LIKE`/`REGEXP`;
     - grouping, all join forms and the row order without `ORDER BY`;
-    - `EXPLAIN` and index statistics;
+    - `EXPLAIN`, index statistics and `HEAP` tables;
     - affected rows and insert ids, `ALTER TABLE`, `LOAD DATA`/`INTO OUTFILE`;
     - error numbers and messages, `SHOW`;
     - several databases, and two connections at once.
@@ -145,9 +145,10 @@ another database. Its comments name the MySQL source file for each part:
   `DECIMAL`, dates and `TIMESTAMP`;
 * the optimizer, as far as it decides what scripts see: const tables,
   `ref`/`eq_ref`, the range optimizer with MyISAM's row estimates, the join
-  cache and per-row ranges, filesort, `GROUP BY` through temporary tables, and
-  `MIN()`/`MAX()` read from indexes. The same rows come back in the same order
-  as on the real server, even without `ORDER BY`. `EXPLAIN` shows the plan;
+  cache and per-row ranges, filesort, `GROUP BY` through temporary tables,
+  `MIN()`/`MAX()` read from indexes, and `HEAP` tables' hash indexes. The same
+  rows come back in the same order as on the real server, even without
+  `ORDER BY`. `EXPLAIN` shows the plan;
 * `INSERT`/`REPLACE`/`UPDATE`/`DELETE` with auto-increment, affected rows,
   insert ids and info strings, `ALTER TABLE`, `LOAD DATA [LOCAL] INFILE` and
   `SELECT ... INTO OUTFILE` (on the simulated disk), `SHOW` in all its forms,

@@ -1,0 +1,126 @@
+> CREATE TABLE h (id int NOT NULL, k int NOT NULL, v char(5), PRIMARY KEY (id), KEY k (k)) TYPE=HEAP
+  ok affected=0 insert_id=0
+> INSERT INTO h VALUES (1, 10, 'a'), (2, 20, 'b'), (3, 10, 'c'), (4, 30, 'd'), (5, 10, 'e')
+  ok affected=5 insert_id=0
+> SELECT * FROM h
+  rows=5 fields=3
+  | '1' | '10' | 'a'
+  | '2' | '20' | 'b'
+  | '3' | '10' | 'c'
+  | '4' | '30' | 'd'
+  | '5' | '10' | 'e'
+> SELECT * FROM h WHERE k = 10
+  rows=3 fields=3
+  | '5' | '10' | 'e'
+  | '3' | '10' | 'c'
+  | '1' | '10' | 'a'
+> SELECT * FROM h WHERE id = 3
+  rows=1 fields=3
+  | '3' | '10' | 'c'
+> SELECT * FROM h WHERE k > 10
+  rows=2 fields=3
+  | '2' | '20' | 'b'
+  | '4' | '30' | 'd'
+> SELECT * FROM h WHERE id IN (5, 1)
+  rows=2 fields=3
+  | '1' | '10' | 'a'
+  | '5' | '10' | 'e'
+> SELECT * FROM h ORDER BY id DESC
+  rows=5 fields=3
+  | '5' | '10' | 'e'
+  | '4' | '30' | 'd'
+  | '3' | '10' | 'c'
+  | '2' | '20' | 'b'
+  | '1' | '10' | 'a'
+> SELECT k, COUNT(*) FROM h GROUP BY k
+  rows=3 fields=2
+  | '10' | '3'
+  | '20' | '1'
+  | '30' | '1'
+> EXPLAIN SELECT * FROM h WHERE k = 10
+  rows=1 fields=8
+  | 'h' | 'ref' | 'k' | 'k' | '4' | 'const' | '10' | 'where used'
+> EXPLAIN SELECT * FROM h WHERE k > 10
+  rows=1 fields=8
+  | 'h' | 'ALL' | 'k' | NULL | NULL | NULL | '5' | 'where used'
+> EXPLAIN SELECT id FROM h ORDER BY id
+  rows=1 fields=8
+  | 'h' | 'ALL' | NULL | NULL | NULL | NULL | '5' | 'Using filesort'
+> EXPLAIN SELECT * FROM h WHERE id = 3
+  rows=1 fields=8
+  | 'h' | 'const' | 'PRIMARY' | 'PRIMARY' | '4' | 'const' | '1' | ''
+> DELETE FROM h WHERE id = 2
+  ok affected=1 insert_id=0
+> DELETE FROM h WHERE id = 4
+  ok affected=1 insert_id=0
+> INSERT INTO h VALUES (6, 20, 'f'), (7, 10, 'g')
+  ok affected=2 insert_id=0
+> SELECT * FROM h
+  rows=5 fields=3
+  | '1' | '10' | 'a'
+  | '7' | '10' | 'g'
+  | '3' | '10' | 'c'
+  | '6' | '20' | 'f'
+  | '5' | '10' | 'e'
+> SELECT * FROM h WHERE k = 10
+  rows=4 fields=3
+  | '7' | '10' | 'g'
+  | '5' | '10' | 'e'
+  | '3' | '10' | 'c'
+  | '1' | '10' | 'a'
+> UPDATE h SET k = 40 WHERE id = 1
+  ok affected=1 insert_id=0
+> SELECT * FROM h WHERE k = 10
+  rows=3 fields=3
+  | '7' | '10' | 'g'
+  | '5' | '10' | 'e'
+  | '3' | '10' | 'c'
+> SELECT h.id, h2.id FROM h, h h2 WHERE h2.k = h.k AND h.id < h2.id
+  rows=3 fields=2
+  | '3' | '7'
+  | '3' | '5'
+  | '5' | '7'
+> SHOW TABLE STATUS LIKE 'h'
+  rows=1 fields=15
+  | 'h' | 'HEAP' | 'Fixed' | '5' | '14' | '129040' | '5872020' | '258064' | '0' | NULL | NULL | NULL | NULL | '' | ''
+> SHOW INDEX FROM h
+  rows=2 fields=10
+  | 'h' | '0' | 'PRIMARY' | '1' | 'id' | NULL | NULL | NULL | NULL | ''
+  | 'h' | '1' | 'k' | '1' | 'k' | NULL | NULL | NULL | NULL | ''
+> CREATE TABLE h2 (id int NOT NULL auto_increment PRIMARY KEY) TYPE=HEAP
+  ERR 1164: The used table type doesn't support AUTO_INCREMENT columns
+> CREATE TABLE h3 (t text) TYPE=HEAP
+  ERR 1163: The used table type doesn't support BLOB/TEXT columns
+> CREATE TABLE h4 (a int, KEY (a)) TYPE=HEAP
+  ERR 1121: Column 'a' is used with UNIQUE or INDEX but is not defined as NOT NULL
+> CREATE TABLE h5 (a char(3) NOT NULL, b int NOT NULL, UNIQUE (a, b)) TYPE=HEAP
+  ok affected=0 insert_id=0
+> INSERT INTO h5 VALUES ('x', 1), ('X', 1), ('y', 2)
+  ERR 1062: Duplicate entry 'X-1' for key 1
+> SELECT * FROM h5 WHERE a = 'x' AND b = 1
+  rows=1 fields=2
+  | 'x' | '1'
+> SELECT * FROM h5 WHERE a = 'x'
+  rows=1 fields=2
+  | 'x' | '1'
+> DELETE FROM h
+  ok affected=0 insert_id=0
+> INSERT INTO h VALUES (9, 1, 'z')
+  ok affected=1 insert_id=0
+> SELECT * FROM h
+  rows=1 fields=3
+  | '9' | '1' | 'z'
+> ALTER TABLE h TYPE=MyISAM
+  ok affected=1 insert_id=0
+> SHOW CREATE TABLE h
+  rows=1 fields=2
+  | 'h' | 'CREATE TABLE `h` (
+  `id` int(11) NOT NULL default '0',
+  `k` int(11) NOT NULL default '0',
+  `v` char(5) default NULL,
+  PRIMARY KEY  (`id`),
+  KEY `k` (`k`)
+) TYPE=MyISAM'
+> SELECT * FROM h
+  rows=1 fields=3
+  | '9' | '1' | 'z'

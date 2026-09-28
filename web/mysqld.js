@@ -5959,9 +5959,11 @@
           if (i === 0) f.key_start |= 1 << nr;
           if (i === 0 && nr !== this.primary_key) f.flags |= (key.flags & HA_NOSAME) && f.pack_length() === key.key_length ? F.UNIQUE_KEY : F.MULTIPLE_KEY;
           const whole = !p.length || p.length >= f.pack_length();
-          // (ISAM can't read strings from a key: HA_KEY_READ_WRONG_STR)
-          if (whole && f.type() !== T.BLOB && (f.result_type() !== STRING_RESULT || this.options.engine !== 'ISAM')) f.part_of_key |= 1 << nr;
-          if (whole && f.type() !== T.BLOB) f.part_of_sortkey |= 1 << nr;
+          // (ISAM can't read strings from a key: HA_KEY_READ_WRONG_STR; HEAP
+          // reads no key alone and has no key order: HA_WRONG_ASCII_ORDER)
+          const heap = this.options.engine === 'HEAP';
+          if (whole && !heap && f.type() !== T.BLOB && (f.result_type() !== STRING_RESULT || this.options.engine !== 'ISAM')) f.part_of_key |= 1 << nr;
+          if (whole && !heap && f.type() !== T.BLOB) f.part_of_sortkey |= 1 << nr;
           f.flags |= F.PART_KEY;
           if (nr === this.primary_key) f.flags |= F.PRI_KEY;
         });
@@ -6023,6 +6025,7 @@
       const pos = this.free.length ? this.free.pop() : this.slots.length;
       this.version = (this.version || 0) + 1;
       this.slots[pos] = rec;
+      if (this.options.engine === 'HEAP') this.hashSeq(pos, null, rec);
       // _mi_new(): the first key of an index allocates its root page
       if (!this.count && this.keys.length) this.not_sorted_pages = true;
       this.count++;
@@ -6043,6 +6046,7 @@
     updateRow(pos, rec) {
       this.version = (this.version || 0) + 1;
       this.indexRemove(pos, this.slots[pos]);
+      if (this.options.engine === 'HEAP') this.hashSeq(pos, this.slots[pos], rec);
       this.slots[pos] = rec;
       this.indexAdd(pos, rec);
       this.placeBlock(pos, rec);
@@ -6060,7 +6064,7 @@
       const u = BigInt.asUintN(bits, n);
       if (u + 1n > BigInt(this.auto_increment)) this.auto_increment = Number(u + 1n);
     }
-    truncate() { this.version = (this.version || 0) + 1; this.slots = []; this.free = []; this.count = 0; this.indexes = null; this.blocks = null; this.resetStats(); }
+    truncate() { this.version = (this.version || 0) + 1; this.slots = []; this.free = []; this.count = 0; this.indexes = null; this.blocks = null; this.hseq = null; this.resetStats(); }
     // unique key lookup: a string that is equal for values MySQL's key compares as equal
     keyString(key, rec) {
       let s = '';
@@ -6207,6 +6211,18 @@
       this.blocks = null;
       this.version = (this.version || 0) + 1;
     }
+    // HEAP keys are hash chains: rows with the same key come newest first;
+    // a row's place in a key's chain changes when its key value does
+    hashSeq(pos, old, rec) {
+      if (!this.hseq) this.hseq = [];
+      this.hseqNext = this.hseqNext || 0;
+      const seqs = this.hseq[pos] && old ? this.hseq[pos].slice() : [];
+      this.keys.forEach((k, nr) => {
+        if (old && k.parts.every((p) => old[p.field] === rec[p.field])) return;
+        seqs[nr] = ++this.hseqNext;
+      });
+      this.hseq[pos] = seqs;
+    }
     // caches that last until the next write
     cache(name) {
       if (!this._cache || this._cache.version !== this.version) this._cache = { version: this.version };
@@ -6273,6 +6289,7 @@
       create_time: sh.create_time, update_time: sh.update_time, check_time: sh.check_time || 0,
       blocks: sh.pack_record && sh.blocks ? sh.blocks : undefined,
       rpk: sh.rpk,
+      hseq: sh.hseq, hseqNext: sh.hseqNext,
       state: [sh.state_changed, sh.not_analyzed, sh.not_optimized_keys, sh.not_sorted_pages].map(Number), defaults: sh.record.map((v) => { const e = encodeValue(v); return e instanceof Uint8Array ? { s: bytesToStr(e) } : e; }), free: sh.free, nslots: sh.slots.length });
   }
   function shareFromJSON(db, name, json) {
@@ -6280,6 +6297,7 @@
     const sh = new TableShare(db, name, { fields: d.fields, keys: d.keys, options: d.options, create_time: d.create_time, update_time: d.update_time });
     sh.auto_increment = Number(d.auto_increment);
     if (d.rpk) sh.rpk = d.rpk;
+    if (d.hseq) { sh.hseq = d.hseq; sh.hseqNext = d.hseqNext; }
     sh.record = d.defaults.map((v) => (v && typeof v === 'object' ? v.s : decodeValue(v)));
     sh.free = d.free || [];
     sh.check_time = d.check_time || 0;
@@ -6710,7 +6728,7 @@
   }
   // the cost of reading table s after the tables not in restMap (find_best's inner part)
   function accessCost(s, restMap, constMap, record_count, idx, positions, tables) {
-    let best = DBL_MAX, records = DBL_MAX, best_key = null, best_uses = null, best_time = DBL_MAX;
+    let best = DBL_MAX, records = DBL_MAX, best_key = null, best_uses = null, best_time = DBL_MAX, best_max_key_part = 0;
     const T5 = xd(TIME_FOR_COMPARE);
     if (s.keyuse.length) {
       let rec = Math.floor(s.records / MATCHING_ROWS_IN_OTHER_TABLE);
@@ -6769,11 +6787,12 @@
         } else tmp = best_time;
         if (xlt(xd(tmp), xsub(xd(best_time), xdiv(xd(recs), T5)))) {
           best_time = xtod(xadd(xd(tmp), xdiv(xd(recs), T5)));
-          best = tmp; records = recs; best_key = key; best_uses = usable;
+          best = tmp; records = recs; best_key = key; best_uses = usable; best_max_key_part = max_key_part;
         }
       }
     }
-    if (records >= s.found_records || best > s.read_time) {
+    if ((records >= s.found_records || best > s.read_time) &&
+        !(s.quick && best_key !== null && s.quick.key === best_key && best_max_key_part >= s.quick_key_parts[best_key])) {
       let tmp;
       if (s.on) tmp = s.found_records;
       else tmp = s.read_time * (1 + Math.floor(20 * record_count / JOIN_BUFF_SIZE));
@@ -6854,7 +6873,11 @@
     }
     let h = '';
     for (const w of want) h += (w.norm === null ? '\x02N' : '\x01' + w.norm) + '\x00';
-    const out = map.get(h) || [];
+    let out = map.get(h) || [];
+    if (s.share.options.engine === 'HEAP' && out.length > 1) {
+      const seq = (r) => (s.share.hseq && s.share.hseq[r.pos] ? s.share.hseq[r.pos][key] || 0 : 0);
+      out = out.slice().sort((a, b) => seq(b) - seq(a));
+    }
     return first ? out[0] || null : out;
   }
   // only_eq_ref_tables(): each table is found by a unique key from columns
@@ -7364,7 +7387,9 @@
       if (x.next && x.next !== IMPOSSIBLE && x.next.part === tree.part + 1) {
         const point = tmpMin.length === tmpMax.length && tmpMin.every((v, i) => partCmp(share.fields[k.parts[i].field], k.parts[i].length || 0, v, tmpMax[i]) === 0);
         if (point && !xMinFlag && !xMaxFlag) {
-          records += checkQuickKeys(share, nr, index, x.next, tmpMin, minFlag | xMinFlag, tmpMax, maxFlag | xMaxFlag, st);
+          const r = checkQuickKeys(share, nr, index, x.next, tmpMin, minFlag | xMinFlag, tmpMax, maxFlag | xMaxFlag, st);
+          if (r === HA_POS_ERROR) return r;
+          records += r;
           continue;
         }
         tmpMinFlag = xMinFlag; tmpMaxFlag = xMaxFlag;
@@ -7374,14 +7399,20 @@
         tmpMinFlag = minFlag | xMinFlag;
         tmpMaxFlag = maxFlag | xMaxFlag;
       }
-      if (!tmpMinFlag && !tmpMaxFlag && tree.part + 1 === k.parts.length && (k.flags & HA_NOSAME) && tmpMin.length === tmpMax.length &&
-        tmpMin.every((v, i) => partCmp(share.fields[k.parts[i].field], k.parts[i].length || 0, v, tmpMax[i]) === 0)) tmp = 1;
-      else tmp = recordsInRange(share, nr, index, tmpMin.length ? tmpMin : null, !!(tmpMinFlag & NEAR_MIN), tmpMax.length ? tmpMax : null, !!(tmpMaxFlag & NEAR_MAX));
+      const point = !tmpMinFlag && !tmpMaxFlag && tmpMin.length === tmpMax.length &&
+        tmpMin.every((v, i) => partCmp(share.fields[k.parts[i].field], k.parts[i].length || 0, v, tmpMax[i]) === 0);
+      if (point && tree.part + 1 === k.parts.length && (k.flags & HA_NOSAME)) tmp = 1;
+      // ha_heap::records_in_range(): whole keys only, and 10 is "a good guess"
+      else if (share.options.engine === 'HEAP') {
+        if (!point || tmpMin.length !== k.parts.length) return HA_POS_ERROR;
+        tmp = 10;
+      } else tmp = recordsInRange(share, nr, index, tmpMin.length ? tmpMin : null, !!(tmpMinFlag & NEAR_MIN), tmpMax.length ? tmpMax : null, !!(tmpMaxFlag & NEAR_MAX));
       records += tmp;
     }
     return records;
   }
   const NEAR_MIN = 1, NEAR_MAX = 2, NO_MIN_RANGE = 4, NO_MAX_RANGE = 8;
+  const HA_POS_ERROR = -1;
   // store_min_key()/store_max_key(): extend the key with the first (last)
   // interval of the following parts
   function storeEnd(tree, key, isMin) {
@@ -7436,6 +7467,7 @@
           const index = indexOrder(share, s.t, nr);
           const st = { max_key_part: 0 };
           found = checkQuickKeys(share, nr, index, k, [], 0, [], 0, st);
+          if (found === HA_POS_ERROR) continue;
           res.quick_rows[nr] = found;
           res.quick_key_parts[nr] = st.max_key_part + 1;
         }
@@ -7443,7 +7475,7 @@
         if (found > 2 && (s.used_keys & (1 << nr))) {
           const kpb = Math.floor(1024 / 2 / (share.keys[nr].key_length + 4)) + 1;
           frt = (found + kpb - 1) / kpb;
-        } else frt = found + found / TIME_FOR_COMPARE;
+        } else frt = (share.options.engine === 'HEAP' ? found / 20 + 1 : found) + found / TIME_FOR_COMPARE;   // handler::read_time()
         if (read_time > frt) { read_time = frt; records = found; best = { nr, k }; }
       }
       if (best && records) {
@@ -9320,7 +9352,27 @@
     }
     return { fields, rows };
   }
+  // HEAP's memory: blocks of records and of hash entries (heap/hp_open.c,
+  // hp_block.c), with record_buffer 131072 and 4-byte pointers
+  function heapStatus(share) {
+    const reclength = share.reclength();
+    const blockBytes = (recbuffer, entries) => {
+      if (!entries) return 0;
+      const rib = Math.floor((131072 - 512 * 4) / recbuffer) + 1;
+      const blocks = Math.ceil(entries / rib);
+      return blocks * rib * recbuffer + (blocks - 1) * 512;
+    };
+    const entries = share.slots.length;
+    const data = blockBytes((reclength + 1 + 3) & ~3, entries);
+    const index = share.keys.length * blockBytes(8, entries);
+    const memPerRow = share.keys.reduce((n, k) => n + k.key_length + 8, 0) + ((reclength + 1 + 3) & ~3);
+    let maxRecords = Math.floor(16777216 / memPerRow);
+    if (share.options.max_rows && share.options.max_rows < maxRecords) maxRecords = Number(share.options.max_rows);
+    return [share.name, 'HEAP', 'Fixed', String(share.rows), String(reclength), String(data), String(maxRecords * reclength),
+      String(index), String(share.free.length * reclength), null, null, null, null, '', share.options.comment || ''];
+  }
   function tableStatusRow(share) {
+    if (share.options.engine === 'HEAP') return heapStatus(share);
     const rows = share.rows;
     const data = share.dataLength();
     const fixed = !share.pack_record;
