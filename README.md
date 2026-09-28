@@ -83,17 +83,22 @@ there is no real process table in a browser.
   - CGI requests are included too: GET/POST, multipart uploads, cookies and
     sessions.
   - **All 96 are identical.**
-* **MySQL differential testing** (`tests/mysql-difftest.js`): each of 20
+* **MySQL differential testing** (`tests/mysql-difftest.js`): each of 24
   scripts in `tests/mysql/` runs on native PHP 4.1.1 against a **real MySQL
   3.23.49 server** built from the original sources (`reference/mysql.Dockerfile`)
   and on the wasm build against the emulated server, and stdout is compared
   byte for byte.
-  - The scripts cover result metadata (`mysql_field_*`, including table
-    aliases), column types and conversions, dates, string functions, collation,
-    `LIKE`/`REGEXP`, grouping, joins and row order, `EXPLAIN`, affected rows and
-    insert ids, `ALTER TABLE`, `LOAD DATA`/`INTO OUTFILE`, error numbers and
-    messages, `SHOW`, and several databases at once.
-  - **All 20 are identical.** Their outputs are also kept as snapshots
+  - The scripts cover:
+    - result metadata (`mysql_field_*`, including table aliases) and the
+      rest of PHP's mysql API;
+    - column types and conversions, dates, the function library, collation,
+      `LIKE`/`REGEXP`;
+    - grouping, all join forms and the row order without `ORDER BY`;
+    - `EXPLAIN` and index statistics;
+    - affected rows and insert ids, `ALTER TABLE`, `LOAD DATA`/`INTO OUTFILE`;
+    - error numbers and messages, `SHOW`;
+    - several databases, and two connections at once.
+  - **All 24 are identical.** Their outputs are also kept as snapshots
     (`tests/mysql/*.out`), which `tests/mysql-test.js` checks quickly and
     without Docker.
 
