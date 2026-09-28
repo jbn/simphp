@@ -2742,6 +2742,44 @@
   // x87 intermediates with a 64-bit mantissa, rounded to double only when
   // passed to floor() (so -0.00005 * 1e4 + 0.5 is a tiny negative number)
   const x87dv = new DataView(new ArrayBuffer(8));
+  // x87 arithmetic of i386 code (gcc -O3): an expression is evaluated with a
+  // 64-bit significand and rounded to double only when stored in a variable.
+  // The optimizer's cost comparisons depend on it (2 < 2.6 - 3/5.0 is true).
+  // Values are dyadic { m: BigInt, e } = m * 2^e.
+  function xd(x) {
+    if (x === 0) return { m: 0n, e: 0 };
+    x87dv.setFloat64(0, x);
+    const hi = x87dv.getUint32(0), lo = x87dv.getUint32(4);
+    const bexp = (hi >>> 20) & 0x7ff;
+    let m = (BigInt(hi & 0xfffff) << 32n) | BigInt(lo);
+    if (bexp) m |= 1n << 52n;
+    return { m: hi >>> 31 ? -m : m, e: (bexp || 1) - 1075 };
+  }
+  function xr(m, e) {
+    const neg = m < 0n;
+    let a = neg ? -m : m;
+    const bits = a.toString(2).length;
+    if (bits <= 64) return { m, e };
+    const sh = BigInt(bits - 64), rem = a & ((1n << sh) - 1n), half = 1n << (sh - 1n);
+    a >>= sh;
+    if (rem > half || (rem === half && (a & 1n))) a++;
+    return { m: neg ? -a : a, e: e + bits - 64 };
+  }
+  const xalign = (a, b) => { const e = Math.min(a.e, b.e); return [a.m << BigInt(a.e - e), b.m << BigInt(b.e - e), e]; };
+  const xadd = (a, b) => { const [p, q, e] = xalign(a, b); return xr(p + q, e); };
+  const xsub = (a, b) => { const [p, q, e] = xalign(a, b); return xr(p - q, e); };
+  const xmul = (a, b) => xr(a.m * b.m, a.e + b.e);
+  function xdiv(a, b) {
+    if (a.m === 0n) return { m: 0n, e: 0 };
+    const neg = (a.m < 0n) !== (b.m < 0n);
+    const am = a.m < 0n ? -a.m : a.m, bm = b.m < 0n ? -b.m : b.m;
+    const k = 66 + bm.toString(2).length;
+    const num = am << BigInt(k);
+    const q = ((num / bm) << 1n) | (num % bm ? 1n : 0n);      // (a sticky bit for the rounding)
+    return xr(neg ? -q : q, a.e - b.e - k - 1);
+  }
+  const xlt = (a, b) => { const [p, q] = xalign(a, b); return p < q; };
+  const xtod = (a) => Number(a.m) * Math.pow(2, a.e);
   function floorHalfX87(nr, p) {
     const d = nr * p;
     if (!isFinite(d) || Math.abs(d) >= 2 ** 52 || nr === 0) return Math.floor(d + 0.5);
@@ -5885,6 +5923,7 @@
       this.keys = [];
       this.primary_key = -1;
       this.setupKeys(def.keys || []);
+      this.resetStats();
       this.auto_field = this.fields.findIndex((f) => f.auto_inc);
       this.timestamp_field = this.fields.findIndex((f) => f.type() === T.TIMESTAMP);
       if (this.timestamp_field >= 0) this.fields[this.timestamp_field].flags |= F.TIMESTAMP;
@@ -5929,6 +5968,55 @@
       });
     }
     get rows() { return this.count; }
+    // MyISAM's key statistics (state.rec_per_key_part): rows per distinct
+    // value of each key prefix, 0 when unknown. mi_create() knows it is 1 at
+    // the end of a unique key without NULLs; the rest come from ANALYZE,
+    // CHECK, OPTIMIZE, REPAIR and the rebuilding of disabled keys
+    resetStats() {
+      this.rpk = this.keys.map((k) => k.parts.map((p, i) => (i === k.parts.length - 1 && (k.flags & (HA_NOSAME | HA_NULL_PART_KEY)) === HA_NOSAME ? 1 : 0)));
+    }
+    // chk_key()/sort_key_write() with T_STATISTICS, then update_key_parts()
+    computeStats(nrs) {
+      for (const nr of nrs) {
+        const k = this.keys[nr];
+        const rows = sortByKey(this, this, nr, [...this.scan()]);
+        const unique = new Array(k.parts.length + 1).fill(0);
+        for (let i = 1; i < rows.length; i++) {
+          let diff = 0;
+          while (diff < k.parts.length) {
+            const p = k.parts[diff];
+            if (partCmp(this.fields[p.field], p.length || 0, rows[i - 1].rec[p.field], rows[i].rec[p.field])) break;
+            diff++;
+          }
+          unique[diff]++;
+        }
+        const records = this.count;
+        let count = 0;
+        this.rpk[nr] = k.parts.map((p, i) => {
+          count += unique[i];
+          return count === 0 ? records : Math.floor((records + Math.floor((count + 1) / 2)) / (count + 1));
+        });
+      }
+    }
+    // keys MyISAM keeps packed (a string part of 8 or more bytes)
+    packedKey(nr) {
+      if (this.options.PACK_KEYS_SYM === 0) return false;
+      return this.keys[nr].parts.some((p) => {
+        const f = this.fields[p.field];
+        return (f.flags & F.BLOB) || (f.real_type() === T.STRING && (p.length || f.field_length) >= 8);
+      });
+    }
+    // mi_disable_non_unique_index(): before a bulk insert into an empty table
+    disableNonUnique(rows) {
+      if (this.count) return [];
+      const auto = this.auto_field >= 0 ? this.keys.findIndex((k) => k.parts[0].field === this.auto_field) : -1;
+      const out = [];
+      this.keys.forEach((k, nr) => {
+        // (mi_too_big_key_for_sort(): packed keys of an unknown row count stay)
+        if (!(k.flags & HA_NOSAME) && !(this.packedKey(nr) && rows === 0) && nr !== auto) out.push(nr);
+      });
+      return out;
+    }
     // rows in position order: [{ pos, rec }]
     *scan() { for (let i = 0; i < this.slots.length; i++) if (this.slots[i]) yield { pos: i, rec: this.slots[i] }; }
     insertRow(rec) {
@@ -5972,7 +6060,7 @@
       const u = BigInt.asUintN(bits, n);
       if (u + 1n > BigInt(this.auto_increment)) this.auto_increment = Number(u + 1n);
     }
-    truncate() { this.version = (this.version || 0) + 1; this.slots = []; this.free = []; this.count = 0; this.indexes = null; this.blocks = null; }
+    truncate() { this.version = (this.version || 0) + 1; this.slots = []; this.free = []; this.count = 0; this.indexes = null; this.blocks = null; this.resetStats(); }
     // unique key lookup: a string that is equal for values MySQL's key compares as equal
     keyString(key, rec) {
       let s = '';
@@ -6184,12 +6272,14 @@
     return JSON.stringify({ fields: sh.def.fields, keys: sh.def.keys, options: sh.options, auto_increment: String(sh.auto_increment),
       create_time: sh.create_time, update_time: sh.update_time, check_time: sh.check_time || 0,
       blocks: sh.pack_record && sh.blocks ? sh.blocks : undefined,
+      rpk: sh.rpk,
       state: [sh.state_changed, sh.not_analyzed, sh.not_optimized_keys, sh.not_sorted_pages].map(Number), defaults: sh.record.map((v) => { const e = encodeValue(v); return e instanceof Uint8Array ? { s: bytesToStr(e) } : e; }), free: sh.free, nslots: sh.slots.length });
   }
   function shareFromJSON(db, name, json) {
     const d = JSON.parse(json);
     const sh = new TableShare(db, name, { fields: d.fields, keys: d.keys, options: d.options, create_time: d.create_time, update_time: d.update_time });
     sh.auto_increment = Number(d.auto_increment);
+    if (d.rpk) sh.rpk = d.rpk;
     sh.record = d.defaults.map((v) => (v && typeof v === 'object' ? v.s : decodeValue(v)));
     sh.free = d.free || [];
     sh.check_time = d.check_time || 0;
@@ -6209,8 +6299,23 @@
     for (const it of items) if (it) it.walk((x) => { if (x.type() === 'FIELD_ITEM' && x.field) refs.add(x.field); });
     return refs;
   }
+  const DBL_MAX = 1.7976931348623157e308;
+  // get_sort_by_table(): the one table ORDER BY and GROUP BY use, if any
+  function getSortByTable(q) {
+    let a = q.order || [], b = q.group || [];
+    if (!a.length) a = b; else if (!b.length) b = a;
+    let map = 0;
+    for (let i = 0; i < Math.min(a.length, b.length); i++) {
+      if (!a[i].item.eq(b[i].item)) return null;
+      map |= a[i].item.used_tables();
+    }
+    if (!map || (map & RAND_TABLE_BIT)) return null;
+    const t = q.tables.find((x) => map & x.map);
+    return t && map === t.map ? t : null;
+  }
   function planJoin(q, conds) {
     const tables = q.tables;
+    let sortByTable = getSortByTable(q);
     const tabs = tables.map((t) => ({
       t, share: t.share, on: t.ref.on || null, dependent: 0, keyuse: [], type: null, row: undefined,
       records: t.share.rows, found_records: 0, read_time: 0, worst_seeks: 0, quick: null,
@@ -6337,35 +6442,42 @@
       if (r.quick) { s.quick = r.quick; s.found_records = r.quick.records; s.read_time = Math.floor(r.quick.read_time); }
       else if (r.impossible) { s.found_records = 0; s.read_time = 0; s.impossible_range = true; }
     }
-    // find_best()
-    const best = { read: Infinity, positions: null };
+    // find_best(): every order of the tables, cut short by the cost so far;
+    // the candidates are swapped into place as MySQL's best_ref array is
+    const best = { read: DBL_MAX, positions: null };
     const positions = [];
-    const findBest = (restMap, idx, record_count, read_time, order) => {
+    const bestRef = stat.slice();
+    const T5 = xd(TIME_FOR_COMPARE);
+    const findBest = (restMap, idx, record_count, read_time) => {
       if (!restMap) {
-        read_time += record_count / TIME_FOR_COMPARE;
+        read_time = xtod(xadd(xd(read_time), xdiv(xd(record_count), T5)));
+        if (sortByTable && sortByTable !== positions[0].s.t) read_time += record_count;   // a temporary table
         if (read_time < best.read) { best.read = read_time; best.positions = positions.slice(0, idx - constCount); }
         return;
       }
-      if (read_time + record_count / TIME_FOR_COMPARE >= best.read) return;
-      let best_record_count = Infinity, best_read_time = Infinity;
-      for (let pi = 0; pi < order.length; pi++) {
-        const s = order[pi];
+      if (!xlt(xadd(xd(read_time), xdiv(xd(record_count), T5)), xd(best.read))) return;
+      let best_record_count = DBL_MAX, best_read_time = DBL_MAX;
+      for (let pi = idx; pi < bestRef.length; pi++) {
+        const s = bestRef[pi];
         if (!(restMap & s.t.map) || (restMap & s.dependent)) continue;
         const acc = accessCost(s, restMap, constMap, record_count, idx - constCount, positions, tables);
         positions[idx - constCount] = { s, key: acc.key, keyuses: acc.keyuses, records: acc.records };
+        if (acc.key === null && idx === constCount && s.t === sortByTable) sortByTable = 1;   // must use a temporary table
         const crc = record_count * acc.records, crt = read_time + acc.best;
-        if (best_record_count > crc || best_read_time > crt) {
+        if (best_record_count > crc || best_read_time > crt || (idx === constCount && s.t === sortByTable)) {
           if (best_record_count >= crc && best_read_time >= crt && (!(s.key_dependent & restMap) || acc.records < 2)) {
             best_record_count = crc; best_read_time = crt;
           }
-          findBest(restMap & ~s.t.map, idx + 1, crc, crt, order.filter((x) => x !== s));
+          [bestRef[idx], bestRef[pi]] = [bestRef[pi], bestRef[idx]];
+          findBest(restMap & ~s.t.map, idx + 1, crc, crt);
+          [bestRef[idx], bestRef[pi]] = [bestRef[pi], bestRef[idx]];
         }
         if (q.sel.options.straight_join) break;
       }
     };
     let restMap = 0;
     for (const s of rest) restMap |= s.t.map;
-    if (rest.length) findBest(restMap, constCount, 1, 0, rest);
+    if (rest.length) findBest(restMap, constCount, 1, 0);
     plan.order = (best.positions || []).map((p) => p.s.t);
     plan.positions = best.positions || [];
     // access methods (get_best_combination, make_join_readinfo)
@@ -6390,6 +6502,9 @@
         s.type = 'all'; s.refKey = -1; p.records = s.quick.records; p.useQuickRange = true;
       }
       const tmp = condForTable(whereAll, used, s.t.map, plan);
+      // (a table with a range from the statistics gets a select even when the
+      // condition is all in the ref: EXPLAIN's "where used")
+      s.hasSelect = !!(tmp || s.quick);
       if (tmp || s.quick) {
         const selCond = tmp ? (Array.isArray(tmp) ? (tmp.length > 1 ? tmp.reduce((x, y) => new Item_cond_and(x, y)) : tmp[0]) : tmp) : null;
         if (s.type === 'eq_ref' || (s.type === 'ref' && s.quick && s.quick.key !== s.refKey)) s.quick = null;
@@ -6595,7 +6710,8 @@
   }
   // the cost of reading table s after the tables not in restMap (find_best's inner part)
   function accessCost(s, restMap, constMap, record_count, idx, positions, tables) {
-    let best = Infinity, records = Infinity, best_key = null, best_uses = null, best_time = Infinity;
+    let best = DBL_MAX, records = DBL_MAX, best_key = null, best_uses = null, best_time = DBL_MAX;
+    const T5 = xd(TIME_FOR_COMPARE);
     if (s.keyuse.length) {
       let rec = Math.floor(s.records / MATCHING_ROWS_IN_OTHER_TABLE);
       const byKey = new Map();
@@ -6626,7 +6742,7 @@
             recs = 1;
           } else {
             if (!found_ref) recs = s.quick_rows && s.quick_rows[key] !== undefined ? s.quick_rows[key] : s.records / rec;
-            else {
+            else if (!(recs = s.share.rpk[key][k.parts.length - 1])) {
               recs = s.records / rec * (1 + (max_key_length - k.key_length) / max_key_length);
               if (recs < 2) recs = 2;
             }
@@ -6637,8 +6753,9 @@
           max_key_part = 0;
           while (found_part & (1 << max_key_part)) max_key_part++;
           if (s.quick_rows && s.quick_rows[key] !== undefined && s.quick_key_parts[key] <= max_key_part) tmp = recs = s.quick_rows[key];
+          else if ((recs = s.share.rpk[key][max_key_part - 1])) tmp = recs;
           else {
-            let rpk = s.records / rec + 1;
+            let rpk = s.share.rpk[key][k.parts.length - 1] || s.records / rec + 1;
             if (!s.records) tmp = 0;
             else if (rpk / s.records >= 0.01) tmp = rpk;
             else {
@@ -6650,8 +6767,8 @@
           if (s.used_keys & (1 << key)) { const kpb = Math.floor(1024 / 2 / k.key_length) + 1; tmp = record_count * (tmp + kpb - 1) / kpb; }
           else tmp = record_count * Math.min(tmp, s.worst_seeks);
         } else tmp = best_time;
-        if (tmp < best_time - recs / TIME_FOR_COMPARE) {
-          best_time = tmp + recs / TIME_FOR_COMPARE;
+        if (xlt(xd(tmp), xsub(xd(best_time), xdiv(xd(recs), T5)))) {
+          best_time = xtod(xadd(xd(tmp), xdiv(xd(recs), T5)));
           best = tmp; records = recs; best_key = key; best_uses = usable;
         }
       }
@@ -6660,7 +6777,8 @@
       let tmp;
       if (s.on) tmp = s.found_records;
       else tmp = s.read_time * (1 + Math.floor(20 * record_count / JOIN_BUFF_SIZE));
-      if (best === Infinity || tmp + record_count / TIME_FOR_COMPARE * s.found_records < best + record_count / TIME_FOR_COMPARE * records) {
+      if (best === DBL_MAX || xlt(xadd(xd(tmp), xmul(xdiv(xd(record_count), T5), xd(s.found_records))),
+        xadd(xd(best), xmul(xdiv(xd(record_count), T5), xd(records))))) {
         best = tmp; records = s.found_records; best_key = null; best_uses = null;
       }
     }
@@ -7835,7 +7953,7 @@
         const extra = [];
         if (s.info) extra.push(s.info);
         else if (s.use_quick === 2) extra.push('range checked for each record (index map: ' + s.keys + ')');
-        else if (!isConst && (condForTable(where, avail, s.t.map, plan) || s.quick)) extra.push('where used');
+        else if (!isConst && s.hasSelect) extra.push('where used');
         if (key_read) extra.push('Using index');
         if (s.not_exists_optimize && s.on) extra.push('Not exists');
         if (need_tmp) { need_tmp = false; extra.push('Using temporary'); }
@@ -8315,6 +8433,8 @@
     THD.cuted_fields = 0;
     t.next_number = true;
     let last_insert_id = 0n;
+    // (select_insert: the non-unique keys of an empty table are rebuilt at the end)
+    const disabled = t.share.disableNonUnique(0);
     try {
       for (const row of res.rows) {
         t.restoreDefaults();
@@ -8323,6 +8443,7 @@
         if (t.share.auto_field >= 0 && !last_insert_id && conn.insert_id_used) last_insert_id = conn.last_insert_id;
       }
     } finally {
+      if (disabled.length) t.share.computeStats(disabled);
       if (info.copied || info.deleted) conn.dirty(t.share);
       THD.count_cuted_fields = false;
     }
@@ -8769,6 +8890,7 @@
     t.next_number = true;
     t.set_timestamp = true;
     let last_insert_id = 0n;
+    const disabled = sh.disableNonUnique(0);
     try {
       for (const row of res.rows) {
         t.restoreDefaults();
@@ -8776,7 +8898,7 @@
         writeRecord(conn, t, info, mode);
         if (sh.auto_field >= 0 && !last_insert_id && conn.insert_id_used) last_insert_id = conn.last_insert_id;
       }
-    } finally { THD.count_cuted_fields = false; }
+    } finally { THD.count_cuted_fields = false; if (disabled.length) sh.computeStats(disabled); }
     if (st.temporary) { sh.tmp_table = true; conn.tmpTables.set(db + '\0' + name, sh); }
     else srv.addTable(sh);
     if (last_insert_id) { conn.last_insert_id = last_insert_id; conn.insert_id_used = true; }
@@ -8930,6 +9052,8 @@
     to.next_number = true;
     to.set_timestamp = !use_timestamp;
     if (!aiReset.value && sh.auto_field >= 0 && share.auto_field >= 0) sh.auto_increment = share.auto_increment;
+    // (copy_data_between_tables(): the new table's non-unique keys are rebuilt)
+    const disabled = sh.disableNonUnique(share.rows);
     try {
       for (const r of rows) {
         table.record = r.rec;
@@ -8946,7 +9070,7 @@
         }
         copied++;
       }
-    } finally { THD.count_cuted_fields = false; }
+    } finally { THD.count_cuted_fields = false; if (disabled.length) sh.computeStats(disabled); }
     conn.insert_id_used = false;
     if (share.tmp_table) {
       sh.tmp_table = true;
@@ -9174,9 +9298,9 @@
         const f = share.fields[p.field];
         // rec_per_key is only known for the last part of a unique key without NULLs
         const heap = share.options.engine === 'HEAP';
-        const known = !heap && (key.flags & (HA_NOSAME | HA_NULL_PART_KEY)) === HA_NOSAME && j === key.parts.length - 1;
+        const rpk = heap ? 0 : share.rpk[share.keys.indexOf(key)][j];
         rows.push([share.name, key.flags & HA_NOSAME ? '0' : '1', key.name, String(j + 1), f.field_name, heap ? null : 'A',
-          known ? String(share.rows) : null, p.length && p.length !== f.pack_length() ? String(p.length) : null, null,
+          rpk ? String(Math.floor(share.rows / rpk)) : null, p.length && p.length !== f.pack_length() ? String(p.length) : null, null,
           key.flags & HA_FULLTEXT ? 'FULLTEXT' : '']);
       });
     }
@@ -9994,24 +10118,28 @@
   // ha_myisam::check()/analyze()/repair(): true when something was done
   function adminTable(sh, st) {
     const done = () => { sh.state_changed = sh.not_analyzed = false; sh.check_time = nowSeconds(); return true; };
+    const allKeys = sh.keys.map((k, nr) => nr);
     switch (st.op) {
       case 'check':
         if (st.opts.includes('FAST_SYM') || (st.opts.includes('CHANGED') && !sh.state_changed)) return false;
+        sh.computeStats(allKeys);
         return done();
       case 'analyze':
         if (!sh.not_analyzed) return false;
+        sh.computeStats(allKeys);
         sh.not_analyzed = false;
         return true;
       case 'repair':
         sh.compact();
+        sh.computeStats(allKeys);
         sh.not_sorted_pages = true;
         sh.not_optimized_keys = false;
         return done();
       case 'optimize': {
-        let did = false;
-        if (sh.free.length) { sh.compact(); sh.not_sorted_pages = true; sh.not_optimized_keys = false; did = true; }
+        let did = false, stats = false;
+        if (sh.free.length) { sh.compact(); sh.computeStats(allKeys); stats = true; sh.not_sorted_pages = true; sh.not_optimized_keys = false; did = true; }
         if (sh.not_sorted_pages) { sh.not_sorted_pages = false; did = true; }
-        if (sh.not_analyzed) { sh.not_analyzed = false; did = true; }
+        if (sh.not_analyzed) { if (!stats) sh.computeStats(allKeys); sh.not_analyzed = false; did = true; }
         sh.state_changed = false;
         return did;
       }
@@ -10281,6 +10409,7 @@
     t.next_number = true;
     t.set_timestamp = !use_timestamp;
     const auto = t.share.auto_field >= 0 ? t.fields[t.share.auto_field] : null;
+    const disabled = t.share.disableNonUnique(0);
     try {
       if (line_term.length && field_term.length) {
         for (let n = st.skip || 0; n > 0; n--) if (ri.next_line()) break;
@@ -10336,6 +10465,7 @@
       }
     } finally {
       THD.count_cuted_fields = false;
+      if (disabled.length) t.share.computeStats(disabled);        // activate_all_index()
       if (info.copied || info.deleted) conn.dirty(t.share);
     }
     return { affected: info.copied + info.deleted, insertId: 0n,

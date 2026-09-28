@@ -167,10 +167,11 @@ What differs from a real 3.23.49 server:
   deliberate: a simulator has no administrator to create accounts, so scripts
   written for their hosting account still connect. `SHOW GRANTS` reads the
   grant tables.
-* **Index statistics**: MyISAM's key statistics from `ANALYZE`, `OPTIMIZE`,
-  `REPAIR` and `ALTER TABLE` are not modeled. After those statements, a real
-  server's `SHOW INDEX` cardinalities, and the plans (and so the unordered row
-  order) that depend on them, can differ.
+* **Index statistics**: MyISAM's key statistics (`ANALYZE`, `CHECK`,
+  `OPTIMIZE`, `REPAIR`, and keys rebuilt after bulk inserts and `ALTER TABLE`)
+  are modeled, with one exception. After `ALTER TABLE` rebuilds a table's
+  non-unique keys, a real server can show cardinality 0 for a unique key on a
+  string column. The cause isn't traced, so the emulator doesn't reproduce it.
 * **Row estimates** model an index that fits in one B-tree page, which is
   exact for small tables. On large tables MySQL's estimates, and so its plan
   choices, can differ.

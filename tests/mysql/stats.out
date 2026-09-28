@@ -1,0 +1,81 @@
+> CREATE TABLE s (id int NOT NULL auto_increment PRIMARY KEY, a int, b char(10) NOT NULL, c varchar(20) NOT NULL, KEY a (a), KEY ab (a, b), UNIQUE KEY c (c), KEY bn (b))
+  ok affected=0 insert_id=0
+> INSERT INTO s (a, b, c) VALUES (1,'x','c1'),(1,'y','c2'),(2,'x','c3'),(NULL,'z','c4'),(NULL,'z','c5'),(3,'x','c6'),(3,'x','c7'),(3,'y','c8')
+  ok affected=8 insert_id=0
+  index of s: PRIMARY.id='8' c.c='8' a.a=NULL ab.a=NULL ab.b=NULL bn.b=NULL
+> EXPLAIN SELECT * FROM s WHERE a = 3
+  rows=1 fields=8
+  | 's' | 'ref' | 'a,ab' | 'ab' | '5' | 'const' | '3' | 'where used'
+> ANALYZE TABLE s
+  rows=1 fields=4
+  | 'test.s' | 'analyze' | 'status' | 'OK'
+  index of s: PRIMARY.id='8' c.c='8' a.a='4' ab.a='4' ab.b='8' bn.b='2'
+> EXPLAIN SELECT * FROM s WHERE a = 3
+  rows=1 fields=8
+  | 's' | 'ref' | 'a,ab' | 'ab' | '5' | 'const' | '3' | 'where used'
+> EXPLAIN SELECT * FROM s WHERE a = 3 AND b = 'x'
+  rows=1 fields=8
+  | 's' | 'ref' | 'a,ab,bn' | 'ab' | '15' | 'const,const' | '2' | 'where used'
+> EXPLAIN SELECT x.id, y.id FROM s x, s y WHERE y.a = x.id
+  rows=2 fields=8
+  | 'y' | 'ALL' | 'a,ab' | NULL | NULL | NULL | '8' | ''
+  | 'x' | 'eq_ref' | 'PRIMARY' | 'PRIMARY' | '4' | 'y.a' | '1' | 'Using index'
+> ANALYZE TABLE s
+  rows=1 fields=4
+  | 'test.s' | 'analyze' | 'status' | 'Table is already up to date'
+> INSERT INTO s (a, b, c) VALUES (4,'w','c9'),(4,'w','c10')
+  ok affected=2 insert_id=0
+  index of s: PRIMARY.id='10' c.c='10' a.a='5' ab.a='5' ab.b='10' bn.b='3'
+> DELETE FROM s WHERE id = 1
+  ok affected=1 insert_id=0
+> OPTIMIZE TABLE s
+  rows=1 fields=4
+  | 'test.s' | 'optimize' | 'status' | 'OK'
+  index of s: PRIMARY.id='9' c.c='9' a.a='4' ab.a='4' ab.b='4' bn.b='4'
+> INSERT INTO s (a, b, c) VALUES (5,'v','c11')
+  ok affected=1 insert_id=11
+> CHECK TABLE s
+  rows=1 fields=4
+  | 'test.s' | 'check' | 'status' | 'OK'
+  index of s: PRIMARY.id='10' c.c='10' a.a='5' ab.a='5' ab.b='10' bn.b='5'
+> REPAIR TABLE s
+  rows=1 fields=4
+  | 'test.s' | 'repair' | 'status' | 'OK'
+  index of s: PRIMARY.id='10' c.c='10' a.a='5' ab.a='5' ab.b='10' bn.b='5'
+> CREATE TABLE t2 (id int NOT NULL, k int, name char(12), KEY k (k), KEY name (name), KEY idk (id, k))
+  ok affected=0 insert_id=0
+> INSERT INTO t2 SELECT id, a, c FROM s
+  ok affected=10 insert_id=0
+  index of t2: k.k='5' name.name=NULL idk.id='10' idk.k='10'
+> CREATE TABLE t3 (id int NOT NULL, k int, KEY k (k)) SELECT id, a AS k FROM s
+  ERR 1060: Duplicate column name 'id'
+  index of t3:<br>
+<b>Warning</b>:  Supplied argument is not a valid MySQL result resource in <b>/var/www/stats.php</b> on line <b>27</b><br>
+
+> CREATE TABLE t4 (id int NOT NULL auto_increment, k int, KEY id (id), KEY k (k))
+  ok affected=0 insert_id=0
+> INSERT INTO t4 (k) SELECT a FROM s
+  ok affected=10 insert_id=1
+  index of t4: id.id=NULL k.k='5'
+> DELETE FROM t4
+  ok affected=0 insert_id=0
+  index of t4: id.id=NULL k.k=NULL
+> CREATE TABLE t5 (a int, b int, KEY a (a), KEY b (b))
+  ok affected=0 insert_id=0
+> INSERT INTO t5 VALUES (1, 1), (1, 2), (2, 2)
+  ok affected=3 insert_id=0
+> ALTER TABLE t5 ADD c int
+  ok affected=3 insert_id=0
+  index of t5: a.a='1' b.b='1'
+> INSERT INTO t5 (a, b) VALUES (3, 3)
+  ok affected=1 insert_id=0
+> INSERT INTO t5 (a, b) SELECT a + 10, b FROM t5
+  ERR 1066: Not unique table/alias: 't5'
+  index of t5: a.a='2' b.b='2'
+> CREATE TABLE t6 (a int NOT NULL, b int, UNIQUE (a), KEY b (b))
+  ok affected=0 insert_id=0
+> INSERT INTO t6 VALUES (1, 1), (2, 1), (3, 2)
+  ok affected=3 insert_id=0
+> ALTER TABLE t6 ADD c int
+  ok affected=3 insert_id=0
+  index of t6: a.a='3' b.b='1'
